@@ -1,0 +1,144 @@
+name: CD
+
+on:
+  workflow_run:
+    workflows:
+      - CI
+    types:
+      - completed
+  workflow_dispatch:
+
+concurrency:
+  group: backend-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-push:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.head_branch == 'main'
+      )
+    runs-on: ubuntu-26.04
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image: ${{ steps.image.outputs.image }}
+      tag: ${{ steps.image.outputs.tag }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Set image name
+        id: image
+        shell: bash
+        run: |
+          IMAGE="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/ai-hackathon-11-back"
+          SOURCE_SHA="${{ github.event.workflow_run.head_sha || github.sha }}"
+          TAG="${SOURCE_SHA::12}"
+          echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: Grant execute permission for Gradle wrapper
+        run: chmod +x ./gradlew
+
+      - name: Build application
+        run: ./gradlew bootJar --no-daemon
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ secrets.GHCR_USERNAME }}
+          password: ${{ secrets.GHCR_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: |
+            ${{ steps.image.outputs.image }}:${{ steps.image.outputs.tag }}
+            ${{ steps.image.outputs.image }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-26.04
+
+    steps:
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          APP_HOST: ${{ secrets.APP_HOST }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$APP_HOST" >> ~/.ssh/known_hosts
+
+      - name: Login to GHCR on App EC2
+        env:
+          APP_HOST: ${{ secrets.APP_HOST }}
+          GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$GHCR_TOKEN" | \
+            ssh -i ~/.ssh/deploy_key ubuntu@"$APP_HOST" \
+              "docker login ghcr.io -u '$GHCR_USERNAME' --password-stdin"
+
+      - name: Deploy backend
+        env:
+          APP_HOST: ${{ secrets.APP_HOST }}
+          IMAGE_REF: ${{ needs.build-and-push.outputs.image }}:${{ needs.build-and-push.outputs.tag }}
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/deploy_key ubuntu@"$APP_HOST" \
+            "IMAGE_REF='$IMAGE_REF' bash -s" <<'REMOTE'
+          set -euo pipefail
+
+          mkdir -p ~/hackathon/backend
+
+          if [ ! -f ~/hackathon/backend/.env ]; then
+            echo "ERROR: ~/hackathon/backend/.env 파일이 없습니다."
+            exit 1
+          fi
+
+          docker network inspect hackathon-net >/dev/null 2>&1 || docker network create hackathon-net
+          docker pull "$IMAGE_REF"
+          docker rm -f backend 2>/dev/null || true
+
+          docker run -d \
+            --name backend \
+            --restart unless-stopped \
+            --network hackathon-net \
+            --env-file ~/hackathon/backend/.env \
+            -p 8080:8080 \
+            "$IMAGE_REF"
+
+          sleep 5
+          docker ps --filter name=backend --filter status=running --format '{{.Names}}' | grep -qx backend
+          REMOTE
