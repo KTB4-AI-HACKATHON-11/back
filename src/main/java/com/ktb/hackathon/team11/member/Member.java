@@ -11,15 +11,19 @@ import lombok.NoArgsConstructor;
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Member extends BaseEntity {
-    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
-    @Column(nullable = false, unique = true, length = 30)
-    private String nickname;
-    @Enumerated(EnumType.STRING) @Column(nullable = false, length = 20)
-    private MemberRole role;
+  @Id
+  @GeneratedValue(strategy = GenerationType.IDENTITY)
+  private Long id;
 
-    public Member(String nickname, MemberRole role) {
-        this.nickname = nickname.strip();
-        this.role = role;
-    }
+  @Column(nullable = false, unique = true, length = 30)
+  private String nickname;
+
+  @Enumerated(EnumType.STRING)
+  @Column(nullable = false, length = 20)
+  private MemberRole role;
+
+  public Member(String nickname, MemberRole role) {
+    this.nickname = nickname.strip();
+    this.role = role;
+  }
 }

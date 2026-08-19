@@ -10,7 +10,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @EnableScheduling
 public class AiHackathon11Application {
 
-	public static void main(String[] args) {
-		SpringApplication.run(AiHackathon11Application.class, args);
-	}
+  public static void main(String[] args) {
+    SpringApplication.run(AiHackathon11Application.class, args);
+  }
 }

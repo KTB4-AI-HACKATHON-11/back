@@ -8,117 +8,201 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
-
-import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1")
 @RequiredArgsConstructor
 @Tag(name = "3. 업무 템플릿", description = "AI 업무 초안과 재사용 가능한 업무 템플릿 관리 API")
 public class TaskTemplateController {
-    private final TaskTemplateService service;
+  private final TaskTemplateService service;
 
-    @Operation(summary = "자연어 업무 초안 생성", description = "MANAGER의 자연어를 AI 서버에 전달해 PHOTO 또는 CHECK 하위 업무 목록으로 변환합니다. 결과는 수정 가능한 초안이며 아직 저장되지 않습니다.", responses = {
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "AI 초안 생성 성공"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "그룹 관리자 권한 없음"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "503", description = "AI 서버 처리 실패")
-    })
-    @PostMapping("/groups/{groupId}/task-drafts")
-    ApiResponse<TaskTemplateService.DraftResponse> draft(
-            @Parameter(description = "업무를 등록할 그룹 ID", example = "1") @PathVariable long groupId,
-            @Valid @RequestBody DraftRequest request
-    ) {
-        return ApiResponse.of("TASK_DRAFT_CREATED", service.draft(groupId, request.managerId(), request.message()));
-    }
+  @Operation(
+      summary = "자연어 업무 초안 생성",
+      description =
+          "MANAGER의 자연어를 AI 서버에 전달해 PHOTO 또는 CHECK 하위 업무 목록으로 변환합니다. 결과는 수정 가능한 초안이며 아직 저장되지 않습니다.",
+      responses = {
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(
+            responseCode = "200",
+            description = "AI 초안 생성 성공"),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(
+            responseCode = "403",
+            description = "그룹 관리자 권한 없음"),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(
+            responseCode = "503",
+            description = "AI 서버 처리 실패")
+      })
+  @PostMapping("/groups/{groupId}/task-drafts")
+  ApiResponse<TaskTemplateService.DraftResponse> draft(
+      @Parameter(description = "업무를 등록할 그룹 ID", example = "1") @PathVariable long groupId,
+      @Valid @RequestBody DraftRequest request) {
+    return ApiResponse.of(
+        "TASK_DRAFT_CREATED", service.draft(groupId, request.managerId(), request.message()));
+  }
 
-    @Operation(summary = "업무 템플릿 등록", description = "관리자가 AI 초안을 확인·수정한 뒤 하나의 템플릿과 순서가 있는 하위 업무로 저장합니다. PHOTO는 verificationRule이 필수이고 CHECK는 null이어야 합니다.", responses = {
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "템플릿 등록 성공"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "PHOTO/CHECK 검증 규칙 또는 입력 형식 오류")
-    })
-    @PostMapping("/groups/{groupId}/task-templates")
-    @ResponseStatus(HttpStatus.CREATED)
-    ApiResponse<TemplateResponse> create(@PathVariable long groupId, @Valid @RequestBody CreateTemplateRequest request) {
-        TaskTemplate template = service.create(groupId, request.managerId(), request.title(), request.sourceMessage(), request.items().stream()
-                .map(item -> new TaskTemplateService.ItemCommand(item.title(), item.instruction(), item.completionType(), item.verificationRule()))
+  @Operation(
+      summary = "업무 템플릿 등록",
+      description =
+          "관리자가 AI 초안을 확인·수정한 뒤 하나의 템플릿과 순서가 있는 하위 업무로 저장합니다. PHOTO는 verificationRule이 필수이고 CHECK는"
+              + " null이어야 합니다.",
+      responses = {
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(
+            responseCode = "201",
+            description = "템플릿 등록 성공"),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(
+            responseCode = "400",
+            description = "PHOTO/CHECK 검증 규칙 또는 입력 형식 오류")
+      })
+  @PostMapping("/groups/{groupId}/task-templates")
+  @ResponseStatus(HttpStatus.CREATED)
+  ApiResponse<TemplateResponse> create(
+      @PathVariable long groupId, @Valid @RequestBody CreateTemplateRequest request) {
+    TaskTemplate template =
+        service.create(
+            groupId,
+            request.managerId(),
+            request.title(),
+            request.sourceMessage(),
+            request.items().stream()
+                .map(
+                    item ->
+                        new TaskTemplateService.ItemCommand(
+                            item.title(),
+                            item.instruction(),
+                            item.completionType(),
+                            item.verificationRule()))
                 .toList());
-        return ApiResponse.of("TASK_TEMPLATE_CREATED", TemplateResponse.from(template, service.items(template.getId())));
+    return ApiResponse.of(
+        "TASK_TEMPLATE_CREATED", TemplateResponse.from(template, service.items(template.getId())));
+  }
+
+  @Operation(summary = "그룹 업무 템플릿 목록", description = "그룹 구성원이 현재 활성화된 업무 템플릿과 하위 업무를 조회합니다.")
+  @GetMapping("/groups/{groupId}/task-templates")
+  ApiResponse<List<TemplateResponse>> list(
+      @PathVariable long groupId, @RequestParam long memberId) {
+    return ApiResponse.of(
+        "TASK_TEMPLATES_FOUND",
+        service.list(groupId, memberId).stream()
+            .map(template -> TemplateResponse.from(template, service.items(template.getId())))
+            .toList());
+  }
+
+  @Operation(summary = "업무 템플릿 상세", description = "그룹 구성원이 템플릿 하나와 PHOTO/CHECK 하위 업무 전체를 조회합니다.")
+  @GetMapping("/task-templates/{id}")
+  ApiResponse<TemplateResponse> detail(@PathVariable long id, @RequestParam long memberId) {
+    TaskTemplate template = service.require(id);
+    service.list(template.getGroup().getId(), memberId);
+    return ApiResponse.of(
+        "TASK_TEMPLATE_FOUND", TemplateResponse.from(template, service.items(id)));
+  }
+
+  @Operation(summary = "업무 템플릿 수정", description = "MANAGER가 템플릿 제목 또는 활성 상태를 변경합니다.")
+  @PatchMapping("/task-templates/{id}")
+  ApiResponse<TemplateResponse> update(
+      @PathVariable long id, @Valid @RequestBody UpdateTemplateRequest request) {
+    TaskTemplate template =
+        service.update(id, request.managerId(), request.title(), request.active());
+    return ApiResponse.of(
+        "TASK_TEMPLATE_UPDATED", TemplateResponse.from(template, service.items(id)));
+  }
+
+  @Operation(
+      summary = "PHOTO 기준 사진 등록",
+      description = "PHOTO 하위 업무에 관리자가 참고할 기준 사진을 저장합니다. JPEG, PNG, WebP만 가능하고 최대 10MB입니다.")
+  @PostMapping(value = "/task-items/{itemId}/reference-image", consumes = "multipart/form-data")
+  ApiResponse<String> reference(
+      @Parameter(description = "PHOTO 하위 업무 ID", example = "10") @PathVariable long itemId,
+      @Parameter(description = "요청 관리자 ID", example = "1") @RequestParam long managerId,
+      @Parameter(description = "기준 이미지 파일(JPEG/PNG/WebP, 최대 10MB)") @RequestPart
+          MultipartFile photo) {
+    return ApiResponse.of(
+        "REFERENCE_IMAGE_SAVED", service.addReferenceImage(itemId, managerId, photo));
+  }
+
+  @Operation(summary = "업무 템플릿 비활성화", description = "기존 수행 이력은 보존하고 이후 배정 생성을 막습니다.")
+  @DeleteMapping("/task-templates/{id}")
+  ApiResponse<Void> delete(@PathVariable long id, @RequestParam long managerId) {
+    service.deactivate(id, managerId);
+    return ApiResponse.of("TASK_TEMPLATE_DEACTIVATED", null);
+  }
+
+  @Schema(description = "AI 업무 초안 요청")
+  public record DraftRequest(
+      @Schema(description = "요청 MANAGER ID", example = "1") @NotNull Long managerId,
+      @Schema(
+              description = "AI가 하위 업무로 분리할 자연어",
+              example = "밤 11시에 POS 전원을 확인하고 매장 바닥을 청소해줘",
+              maxLength = 2000)
+          @NotBlank
+          @Size(max = 2000)
+          String message) {}
+
+  @Schema(description = "하위 업무 등록 정보")
+  public record ItemRequest(
+      @Schema(description = "업무 제목", example = "POS 전원 확인") @NotBlank @Size(max = 80) String title,
+      @Schema(description = "알바생 수행 안내", example = "POS 화면이 보이도록 촬영해 주세요.")
+          @NotBlank
+          @Size(max = 500)
+          String instruction,
+      @Schema(
+              description = "완료 방식",
+              example = "PHOTO",
+              allowableValues = {"PHOTO", "CHECK"})
+          @NotNull
+          CompletionType completionType,
+      @Schema(
+              description = "PHOTO 판정 조건. CHECK일 때는 null",
+              example = "POS 화면이 켜져 있고 정상 화면이 표시되어야 한다.")
+          @Size(max = 1000)
+          String verificationRule) {}
+
+  @Schema(description = "업무 템플릿 등록 요청")
+  public record CreateTemplateRequest(
+      @Schema(example = "1") @NotNull Long managerId,
+      @Schema(example = "야간 POS 및 매장 정리") @NotBlank @Size(max = 80) String title,
+      @Schema(example = "밤 11시에 POS 전원을 확인하고 매장 바닥을 청소해줘") @NotBlank @Size(max = 2000)
+          String sourceMessage,
+      @NotEmpty @Size(max = 20) List<@Valid ItemRequest> items) {}
+
+  @Schema(description = "업무 템플릿 부분 수정 요청")
+  public record UpdateTemplateRequest(
+      @Schema(example = "1") @NotNull Long managerId,
+      @Schema(example = "수정된 야간 업무") @Size(max = 80) String title,
+      @Schema(example = "true") Boolean active) {}
+
+  @Schema(description = "하위 업무 정보")
+  public record ItemResponse(
+      Long itemId,
+      int sequence,
+      String title,
+      String instruction,
+      CompletionType completionType,
+      String verificationRule) {
+    static ItemResponse from(TaskItemTemplate item) {
+      return new ItemResponse(
+          item.getId(),
+          item.getSequence(),
+          item.getTitle(),
+          item.getInstruction(),
+          item.getCompletionType(),
+          item.getVerificationRule());
     }
+  }
 
-    @Operation(summary = "그룹 업무 템플릿 목록", description = "그룹 구성원이 현재 활성화된 업무 템플릿과 하위 업무를 조회합니다.")
-    @GetMapping("/groups/{groupId}/task-templates")
-    ApiResponse<List<TemplateResponse>> list(@PathVariable long groupId, @RequestParam long memberId) {
-        return ApiResponse.of("TASK_TEMPLATES_FOUND", service.list(groupId, memberId).stream()
-                .map(template -> TemplateResponse.from(template, service.items(template.getId()))).toList());
+  @Schema(description = "업무 템플릿 상세 응답")
+  public record TemplateResponse(
+      Long templateId, Long groupId, String title, boolean active, List<ItemResponse> items) {
+    static TemplateResponse from(TaskTemplate template, List<TaskItemTemplate> items) {
+      return new TemplateResponse(
+          template.getId(),
+          template.getGroup().getId(),
+          template.getTitle(),
+          template.isActive(),
+          items.stream().map(ItemResponse::from).toList());
     }
-
-    @Operation(summary = "업무 템플릿 상세", description = "그룹 구성원이 템플릿 하나와 PHOTO/CHECK 하위 업무 전체를 조회합니다.")
-    @GetMapping("/task-templates/{id}")
-    ApiResponse<TemplateResponse> detail(@PathVariable long id, @RequestParam long memberId) {
-        TaskTemplate template = service.require(id);
-        service.list(template.getGroup().getId(), memberId);
-        return ApiResponse.of("TASK_TEMPLATE_FOUND", TemplateResponse.from(template, service.items(id)));
-    }
-
-    @Operation(summary = "업무 템플릿 수정", description = "MANAGER가 템플릿 제목 또는 활성 상태를 변경합니다.")
-    @PatchMapping("/task-templates/{id}")
-    ApiResponse<TemplateResponse> update(@PathVariable long id, @Valid @RequestBody UpdateTemplateRequest request) {
-        TaskTemplate template = service.update(id, request.managerId(), request.title(), request.active());
-        return ApiResponse.of("TASK_TEMPLATE_UPDATED", TemplateResponse.from(template, service.items(id)));
-    }
-
-    @Operation(summary = "PHOTO 기준 사진 등록", description = "PHOTO 하위 업무에 관리자가 참고할 기준 사진을 저장합니다. JPEG, PNG, WebP만 가능하고 최대 10MB입니다.")
-    @PostMapping(value = "/task-items/{itemId}/reference-image", consumes = "multipart/form-data")
-    ApiResponse<String> reference(
-            @Parameter(description = "PHOTO 하위 업무 ID", example = "10") @PathVariable long itemId,
-            @Parameter(description = "요청 관리자 ID", example = "1") @RequestParam long managerId,
-            @Parameter(description = "기준 이미지 파일(JPEG/PNG/WebP, 최대 10MB)") @RequestPart MultipartFile photo
-    ) {
-        return ApiResponse.of("REFERENCE_IMAGE_SAVED", service.addReferenceImage(itemId, managerId, photo));
-    }
-
-    @Operation(summary = "업무 템플릿 비활성화", description = "기존 수행 이력은 보존하고 이후 배정 생성을 막습니다.")
-    @DeleteMapping("/task-templates/{id}")
-    ApiResponse<Void> delete(@PathVariable long id, @RequestParam long managerId) {
-        service.deactivate(id, managerId);
-        return ApiResponse.of("TASK_TEMPLATE_DEACTIVATED", null);
-    }
-
-    @Schema(description = "AI 업무 초안 요청")
-    public record DraftRequest(
-            @Schema(description = "요청 MANAGER ID", example = "1") @NotNull Long managerId,
-            @Schema(description = "AI가 하위 업무로 분리할 자연어", example = "밤 11시에 POS 전원을 확인하고 매장 바닥을 청소해줘", maxLength = 2000) @NotBlank @Size(max = 2000) String message
-    ) {}
-
-    @Schema(description = "하위 업무 등록 정보")
-    public record ItemRequest(
-            @Schema(description = "업무 제목", example = "POS 전원 확인") @NotBlank @Size(max = 80) String title,
-            @Schema(description = "알바생 수행 안내", example = "POS 화면이 보이도록 촬영해 주세요.") @NotBlank @Size(max = 500) String instruction,
-            @Schema(description = "완료 방식", example = "PHOTO", allowableValues = {"PHOTO", "CHECK"}) @NotNull CompletionType completionType,
-            @Schema(description = "PHOTO 판정 조건. CHECK일 때는 null", example = "POS 화면이 켜져 있고 정상 화면이 표시되어야 한다.") @Size(max = 1000) String verificationRule
-    ) {}
-
-    @Schema(description = "업무 템플릿 등록 요청")
-    public record CreateTemplateRequest(
-            @Schema(example = "1") @NotNull Long managerId,
-            @Schema(example = "야간 POS 및 매장 정리") @NotBlank @Size(max = 80) String title,
-            @Schema(example = "밤 11시에 POS 전원을 확인하고 매장 바닥을 청소해줘") @NotBlank @Size(max = 2000) String sourceMessage,
-            @NotEmpty @Size(max = 20) List<@Valid ItemRequest> items
-    ) {}
-
-    @Schema(description = "업무 템플릿 부분 수정 요청")
-    public record UpdateTemplateRequest(@Schema(example = "1") @NotNull Long managerId, @Schema(example = "수정된 야간 업무") @Size(max = 80) String title, @Schema(example = "true") Boolean active) {}
-
-    @Schema(description = "하위 업무 정보")
-    public record ItemResponse(Long itemId, int sequence, String title, String instruction, CompletionType completionType, String verificationRule) {
-        static ItemResponse from(TaskItemTemplate item) { return new ItemResponse(item.getId(), item.getSequence(), item.getTitle(), item.getInstruction(), item.getCompletionType(), item.getVerificationRule()); }
-    }
-
-    @Schema(description = "업무 템플릿 상세 응답")
-    public record TemplateResponse(Long templateId, Long groupId, String title, boolean active, List<ItemResponse> items) {
-        static TemplateResponse from(TaskTemplate template, List<TaskItemTemplate> items) { return new TemplateResponse(template.getId(), template.getGroup().getId(), template.getTitle(), template.isActive(), items.stream().map(ItemResponse::from).toList()); }
-    }
+  }
 }

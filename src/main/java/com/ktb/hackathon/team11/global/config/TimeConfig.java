@@ -1,15 +1,14 @@
 package com.ktb.hackathon.team11.global.config;
 
+import java.time.Clock;
+import java.time.ZoneId;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-import java.time.Clock;
-import java.time.ZoneId;
-
 @Configuration
 public class TimeConfig {
-    @Bean
-    Clock clock() {
-        return Clock.system(ZoneId.of("Asia/Seoul"));
-    }
+  @Bean
+  Clock clock() {
+    return Clock.system(ZoneId.of("Asia/Seoul"));
+  }
 }

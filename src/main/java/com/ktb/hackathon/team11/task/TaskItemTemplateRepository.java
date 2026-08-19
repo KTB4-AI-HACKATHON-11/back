@@ -1,1 +1,8 @@
-package com.ktb.hackathon.team11.task;import org.springframework.data.jpa.repository.JpaRepository;import java.util.List;public interface TaskItemTemplateRepository extends JpaRepository<TaskItemTemplate,Long>{List<TaskItemTemplate> findAllByTaskTemplateIdOrderBySequence(Long id);}
+package com.ktb.hackathon.team11.task;
+
+import java.util.List;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+public interface TaskItemTemplateRepository extends JpaRepository<TaskItemTemplate, Long> {
+  List<TaskItemTemplate> findAllByTaskTemplateIdOrderBySequence(Long id);
+}

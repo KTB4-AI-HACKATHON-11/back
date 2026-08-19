@@ -1,5 +1,60 @@
 package com.ktb.hackathon.team11.task;
-import com.ktb.hackathon.team11.ai.CompletionType;import com.ktb.hackathon.team11.global.exception.*;import jakarta.persistence.*;import lombok.*;
-@Entity @Table(name="task_item_templates",uniqueConstraints=@UniqueConstraint(columnNames={"task_template_id","sequence_no"})) @Getter @NoArgsConstructor(access=AccessLevel.PROTECTED)
-public class TaskItemTemplate{@Id @GeneratedValue(strategy=GenerationType.IDENTITY)private Long id;@ManyToOne(fetch=FetchType.LAZY,optional=false)@JoinColumn(name="task_template_id")private TaskTemplate taskTemplate;@Column(name="sequence_no",nullable=false)private int sequence;@Column(nullable=false,length=80)private String title;@Column(nullable=false,length=500)private String instruction;@Enumerated(EnumType.STRING)@Column(nullable=false)private CompletionType completionType;@Column(length=1000)private String verificationRule;private String referenceImageKey;
-public TaskItemTemplate(TaskTemplate t,int s,String title,String instruction,CompletionType type,String rule){if(type==CompletionType.PHOTO&&(rule==null||rule.isBlank()))throw new BusinessException(ErrorCode.INVALID_COMPLETION_TYPE);if(type==CompletionType.CHECK&&rule!=null&&!rule.isBlank())throw new BusinessException(ErrorCode.INVALID_COMPLETION_TYPE);this.taskTemplate=t;sequence=s;this.title=title;this.instruction=instruction;completionType=type;verificationRule=type==CompletionType.CHECK?null:rule;}public void setReferenceImageKey(String key){if(completionType!=CompletionType.PHOTO)throw new BusinessException(ErrorCode.INVALID_COMPLETION_TYPE);referenceImageKey=key;}}
+
+import com.ktb.hackathon.team11.ai.CompletionType;
+import com.ktb.hackathon.team11.global.exception.*;
+import jakarta.persistence.*;
+import lombok.*;
+
+@Entity
+@Table(
+    name = "task_item_templates",
+    uniqueConstraints = @UniqueConstraint(columnNames = {"task_template_id", "sequence_no"}))
+@Getter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+public class TaskItemTemplate {
+  @Id
+  @GeneratedValue(strategy = GenerationType.IDENTITY)
+  private Long id;
+
+  @ManyToOne(fetch = FetchType.LAZY, optional = false)
+  @JoinColumn(name = "task_template_id")
+  private TaskTemplate taskTemplate;
+
+  @Column(name = "sequence_no", nullable = false)
+  private int sequence;
+
+  @Column(nullable = false, length = 80)
+  private String title;
+
+  @Column(nullable = false, length = 500)
+  private String instruction;
+
+  @Enumerated(EnumType.STRING)
+  @Column(nullable = false)
+  private CompletionType completionType;
+
+  @Column(length = 1000)
+  private String verificationRule;
+
+  private String referenceImageKey;
+
+  public TaskItemTemplate(
+      TaskTemplate t, int s, String title, String instruction, CompletionType type, String rule) {
+    if (type == CompletionType.PHOTO && (rule == null || rule.isBlank()))
+      throw new BusinessException(ErrorCode.INVALID_COMPLETION_TYPE);
+    if (type == CompletionType.CHECK && rule != null && !rule.isBlank())
+      throw new BusinessException(ErrorCode.INVALID_COMPLETION_TYPE);
+    this.taskTemplate = t;
+    sequence = s;
+    this.title = title;
+    this.instruction = instruction;
+    completionType = type;
+    verificationRule = type == CompletionType.CHECK ? null : rule;
+  }
+
+  public void setReferenceImageKey(String key) {
+    if (completionType != CompletionType.PHOTO)
+      throw new BusinessException(ErrorCode.INVALID_COMPLETION_TYPE);
+    referenceImageKey = key;
+  }
+}
