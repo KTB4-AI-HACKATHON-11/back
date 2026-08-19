@@ -1,0 +1,1 @@
+package com.ktb.hackathon.team11.task;import org.springframework.data.jpa.repository.JpaRepository;import java.util.List;public interface TaskTemplateRepository extends JpaRepository<TaskTemplate,Long>{List<TaskTemplate> findAllByGroupIdAndActiveTrue(Long groupId);}
