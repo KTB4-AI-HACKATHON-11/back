@@ -119,10 +119,12 @@ jobs:
           DB_NAME: ${{ vars.DB_NAME }}
           DB_USERNAME: ${{ vars.DB_USERNAME }}
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          AWS_REGION: ${{ vars.AWS_REGION }}
+          S3_BUCKET: ${{ vars.S3_BUCKET }}
         run: |
           set -euo pipefail
           ssh -i ~/.ssh/deploy_key ubuntu@"$APP_HOST" \
-            "IMAGE_REF='$IMAGE_REF' DB_HOST='$DB_HOST' DB_PORT='$DB_PORT' DB_NAME='$DB_NAME' DB_USERNAME='$DB_USERNAME' DB_PASSWORD='$DB_PASSWORD' bash -s" <<'REMOTE'
+            "IMAGE_REF='$IMAGE_REF' DB_HOST='$DB_HOST' DB_PORT='$DB_PORT' DB_NAME='$DB_NAME' DB_USERNAME='$DB_USERNAME' DB_PASSWORD='$DB_PASSWORD' AWS_REGION='$AWS_REGION' S3_BUCKET='$S3_BUCKET' bash -s" <<'REMOTE'
           set -euo pipefail
 
           mkdir -p ~/hackathon/backend
@@ -139,6 +141,8 @@ jobs:
             -e DB_URL="jdbc:mysql://${DB_HOST}:${DB_PORT}/${DB_NAME}?serverTimezone=Asia/Seoul&characterEncoding=UTF-8" \
             -e DB_USERNAME="${DB_USERNAME}" \
             -e DB_PASSWORD="${DB_PASSWORD}" \
+            -e AWS_REGION="${AWS_REGION}" \
+            -e S3_BUCKET="${S3_BUCKET}" \
             "$IMAGE_REF"
 
           sleep 5
