@@ -114,10 +114,15 @@ jobs:
         env:
           APP_HOST: ${{ secrets.APP_HOST }}
           IMAGE_REF: ${{ needs.build-and-push.outputs.image }}:${{ needs.build-and-push.outputs.tag }}
+          DB_HOST: ${{ vars.DB_HOST }}
+          DB_PORT: ${{ vars.DB_PORT }}
+          DB_NAME: ${{ vars.DB_NAME }}
+          DB_USERNAME: ${{ vars.DB_USERNAME }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
         run: |
           set -euo pipefail
           ssh -i ~/.ssh/deploy_key ubuntu@"$APP_HOST" \
-            "IMAGE_REF='$IMAGE_REF' bash -s" <<'REMOTE'
+            "IMAGE_REF='$IMAGE_REF' DB_HOST='$DB_HOST' DB_PORT='$DB_PORT' DB_NAME='$DB_NAME' DB_USERNAME='$DB_USERNAME' DB_PASSWORD='$DB_PASSWORD' bash -s" <<'REMOTE'
           set -euo pipefail
 
           mkdir -p ~/hackathon/backend
@@ -131,6 +136,9 @@ jobs:
             --restart unless-stopped \
             --network hackathon-net \
             -p 8080:8080 \
+            -e DB_URL="jdbc:mysql://${DB_HOST}:${DB_PORT}/${DB_NAME}?serverTimezone=Asia/Seoul&characterEncoding=UTF-8" \
+            -e DB_USERNAME="${DB_USERNAME}" \
+            -e DB_PASSWORD="${DB_PASSWORD}" \
             "$IMAGE_REF"
 
           sleep 5
