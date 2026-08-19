@@ -8,7 +8,6 @@ import org.springframework.test.context.ActiveProfiles;
 @SpringBootTest
 class AiHackathon11ApplicationTests {
 
-	@Test
-	void contextLoads() {
-	}
+  @Test
+  void contextLoads() {}
 }

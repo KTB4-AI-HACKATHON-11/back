@@ -1,4 +1,55 @@
 package com.ktb.hackathon.team11.assignment;
-import com.ktb.hackathon.team11.global.exception.*;import com.ktb.hackathon.team11.group.GroupService;import com.ktb.hackathon.team11.member.*;import lombok.RequiredArgsConstructor;import org.springframework.stereotype.Service;import org.springframework.transaction.annotation.Transactional;import java.time.*;import java.util.*;
-@Service @RequiredArgsConstructor @Transactional(readOnly=true)
-public class AssignmentService{private final TaskAssignmentRepository repository;private final MemberService members;private final GroupService groups;private final Clock clock;public TaskAssignment require(long id){return repository.findById(id).orElseThrow(()->new BusinessException(ErrorCode.ASSIGNMENT_NOT_FOUND));}public List<TaskAssignment> worker(long workerId,LocalDate date){members.requireRole(workerId,MemberRole.WORKER);List<TaskAssignment> result=new ArrayList<>(repository.findAllByScheduledDateAndAssigneeId(date,workerId));for(TaskAssignment a:repository.findAllByScheduledDateAndAssigneeIsNull(date))try{groups.requireMember(a.getSchedule().getTaskTemplate().getGroup().getId(),workerId);result.add(a);}catch(BusinessException ignored){}return result;}public List<TaskAssignment> group(long groupId,long managerId,LocalDate date){groups.requireManager(groupId,managerId);return repository.findAllByScheduleTaskTemplateGroupIdAndScheduledDate(groupId,date);}@Transactional public TaskAssignment check(long id,long workerId){members.requireRole(workerId,MemberRole.WORKER);TaskAssignment a=require(id);groups.requireMember(a.getSchedule().getTaskTemplate().getGroup().getId(),workerId);if(a.getAssignee()!=null&&!a.getAssignee().getId().equals(workerId))throw new BusinessException(ErrorCode.GROUP_ACCESS_DENIED);a.completeCheck(LocalDateTime.now(clock));return a;}}
+
+import com.ktb.hackathon.team11.global.exception.*;
+import com.ktb.hackathon.team11.group.GroupService;
+import com.ktb.hackathon.team11.member.*;
+import java.time.*;
+import java.util.*;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+@Service
+@RequiredArgsConstructor
+@Transactional(readOnly = true)
+public class AssignmentService {
+  private final TaskAssignmentRepository repository;
+  private final MemberService members;
+  private final GroupService groups;
+  private final Clock clock;
+
+  public TaskAssignment require(long id) {
+    return repository
+        .findById(id)
+        .orElseThrow(() -> new BusinessException(ErrorCode.ASSIGNMENT_NOT_FOUND));
+  }
+
+  public List<TaskAssignment> worker(long workerId, LocalDate date) {
+    members.requireRole(workerId, MemberRole.WORKER);
+    List<TaskAssignment> result =
+        new ArrayList<>(repository.findAllByScheduledDateAndAssigneeId(date, workerId));
+    for (TaskAssignment a : repository.findAllByScheduledDateAndAssigneeIsNull(date))
+      try {
+        groups.requireMember(a.getSchedule().getTaskTemplate().getGroup().getId(), workerId);
+        result.add(a);
+      } catch (BusinessException ignored) {
+      }
+    return result;
+  }
+
+  public List<TaskAssignment> group(long groupId, long managerId, LocalDate date) {
+    groups.requireManager(groupId, managerId);
+    return repository.findAllByScheduleTaskTemplateGroupIdAndScheduledDate(groupId, date);
+  }
+
+  @Transactional
+  public TaskAssignment check(long id, long workerId) {
+    members.requireRole(workerId, MemberRole.WORKER);
+    TaskAssignment a = require(id);
+    groups.requireMember(a.getSchedule().getTaskTemplate().getGroup().getId(), workerId);
+    if (a.getAssignee() != null && !a.getAssignee().getId().equals(workerId))
+      throw new BusinessException(ErrorCode.GROUP_ACCESS_DENIED);
+    a.completeCheck(LocalDateTime.now(clock));
+    return a;
+  }
+}
