@@ -20,3 +20,19 @@ cors:
 logging:
   level:
     org.hibernate.SQL: debug
+
+ai:
+  base-url: ${AI_BASE_URL:http://localhost:8081}
+  service-token: ${AI_SERVICE_TOKEN:demo-token}
+  connect-timeout-seconds: ${AI_CONNECT_TIMEOUT_SECONDS:5}
+  read-timeout-seconds: ${AI_READ_TIMEOUT_SECONDS:60}
+  stub-enabled: ${AI_STUB_ENABLED:true}
+
+storage:
+  local-enabled: ${STORAGE_LOCAL_ENABLED:true}
+  bucket: ${S3_BUCKET:convenience-store-task-agent}
+  region: ${AWS_REGION:ap-northeast-2}
+  presigned-url-minutes: ${S3_PRESIGNED_URL_MINUTES:5}
+
+task:
+  assignment-generation-cron: ${TASK_ASSIGNMENT_GENERATION_CRON:0 0 0 * * *}

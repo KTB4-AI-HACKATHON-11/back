@@ -5,6 +5,13 @@ The following was discovered as part of building this project:
 
 # Getting Started
 
+편의점 업무 에이전트 문서:
+
+- 기능 및 엔티티 설계: `docs/superpowers/specs/2026-08-19-convenience-store-task-agent-design.md`
+- 구현 계획: `docs/superpowers/plans/2026-08-19-convenience-store-task-agent.md`
+- API 명세: `docs/api/task-agent-api.md`
+- 데모 실행: `docs/demo/task-agent-demo.md`
+
 ### Reference Documentation
 For further reference, please consider the following sections:
 

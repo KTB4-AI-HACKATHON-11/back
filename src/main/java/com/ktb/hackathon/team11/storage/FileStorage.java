@@ -1,0 +1,1 @@
+package com.ktb.hackathon.team11.storage;import java.time.Duration;public interface FileStorage{StoredFile store(String objectKey,byte[] bytes,String mimeType);String createReadUrl(String objectKey,Duration validFor);void delete(String objectKey);}
