@@ -37,6 +37,19 @@ storage:
 task:
   assignment-generation-cron: ${TASK_ASSIGNMENT_GENERATION_CRON:0 0 0 * * *}
 
+springdoc:
+  api-docs:
+    enabled: ${SWAGGER_ENABLED:true}
+    path: /v3/api-docs
+  swagger-ui:
+    enabled: ${SWAGGER_ENABLED:true}
+    path: /swagger-ui.html
+    operations-sorter: method
+    tags-sorter: alpha
+    display-request-duration: true
+  default-consumes-media-type: application/json
+  default-produces-media-type: application/json
+
 cloud:
   aws:
     region:

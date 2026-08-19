@@ -8,6 +8,21 @@ plugins {
 group = 'com.ktb'
 version = '0.0.1-SNAPSHOT'
 
+// OneDrive의 Files On-Demand가 build/classes를 reparse point로 바꾸면
+// Gradle이 이전 컴파일 산출물을 삭제하거나 스냅샷하지 못한다.
+// 명시적인 GRADLE_BUILD_DIR을 우선 사용하고, OneDrive 작업공간에서만
+// 재생성 가능한 빌드 산출물을 LOCALAPPDATA 아래로 우회한다.
+def configuredBuildDir = System.getenv('GRADLE_BUILD_DIR')
+def localAppData = System.getenv('LOCALAPPDATA')
+def isOneDriveWorkspace = projectDir.absolutePath.toLowerCase(Locale.ROOT)
+		.contains("${File.separator}onedrive${File.separator}".toLowerCase(Locale.ROOT))
+
+if (configuredBuildDir) {
+	layout.buildDirectory = file(configuredBuildDir)
+} else if (isOneDriveWorkspace && localAppData) {
+	layout.buildDirectory = file("${localAppData}/ktb11-build/${rootProject.name}")
+}
+
 java {
 	sourceCompatibility = '21'
 	targetCompatibility = '21'
@@ -25,6 +40,7 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
 	implementation 'org.springframework.boot:spring-boot-starter-webmvc'
+	implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.3'
 	implementation platform('software.amazon.awssdk:bom:2.32.18')
 	implementation 'software.amazon.awssdk:s3'
 
