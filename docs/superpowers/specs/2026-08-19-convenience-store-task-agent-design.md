@@ -285,7 +285,7 @@ DB 저장이 실패한 경우 이미 업로드한 새 객체 삭제를 시도한
 공통 설정:
 
 ```text
-AI_BASE_URL
+AI_BACKEND_BASE_URL
 AI_SERVICE_TOKEN
 AI_CONNECT_TIMEOUT_SECONDS=5
 AI_READ_TIMEOUT_SECONDS=60
@@ -296,7 +296,7 @@ AI_READ_TIMEOUT_SECONDS=60
 ### 11.1 태스크 생성
 
 ```http
-POST {AI_BASE_URL}/v1/tasks/generate
+POST {AI_BACKEND_BASE_URL}/v1/tasks/generate
 ```
 
 요청:
@@ -312,7 +312,7 @@ POST {AI_BASE_URL}/v1/tasks/generate
 ### 11.2 사진 검사
 
 ```http
-POST {AI_BASE_URL}/v1/attempts/check
+POST {AI_BACKEND_BASE_URL}/v1/attempts/check
 ```
 
 요청에는 태스크의 제목, 안내, 규칙과 사진의 MIME, 크기, SHA-256, HTTPS 임시 URL을 포함한다.
@@ -467,7 +467,7 @@ POST {AI_BASE_URL}/v1/attempts/check
 DB_URL
 DB_USERNAME
 DB_PASSWORD
-AI_BASE_URL
+AI_BACKEND_BASE_URL
 AI_SERVICE_TOKEN
 AI_CONNECT_TIMEOUT_SECONDS=5
 AI_READ_TIMEOUT_SECONDS=60

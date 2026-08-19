@@ -13,7 +13,7 @@ public class StubAiTaskClient implements AiTaskClient {
             new GeneratedTask("매장 바닥 청소","바닥 청소를 마친 뒤 완료를 체크해 주세요.",CompletionType.CHECK,null));
     }
     public PhotoCheckResult checkPhoto(PhotoCheckCommand command){
-        if(command.url().toLowerCase().contains("retake")) return new PhotoCheckResult(PhotoCheckStatus.RETAKE,"사진에서 기준을 확인하기 어렵습니다.","기준 대상이 선명하게 보이도록 다시 촬영해 주세요.");
+        if(command.photo().url().toLowerCase().contains("retake")) return new PhotoCheckResult(PhotoCheckStatus.RETAKE,"사진에서 기준을 확인하기 어렵습니다.","기준 대상이 선명하게 보이도록 다시 촬영해 주세요.");
         return new PhotoCheckResult(PhotoCheckStatus.PASS,"사진에서 업무 기준을 충족한 것을 확인했습니다.",null);
     }
 }

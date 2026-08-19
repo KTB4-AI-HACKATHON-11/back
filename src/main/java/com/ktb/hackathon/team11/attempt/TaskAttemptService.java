@@ -54,12 +54,20 @@ public class TaskAttemptService {
 
     private void evaluate(TaskAssignment assignment, TaskAttempt attempt, String mime, long size, String sha, String objectKey, String url) {
         try {
+            var item = assignment.getTaskItemTemplate();
+            String referenceUrl = item.hasReferenceImage()
+                    ? storage.createReadUrl(item.getReferenceImageKey(), Duration.ofMinutes(urlMinutes))
+                    : null;
             PhotoCheckResult result;
             try {
-                result = check(assignment, mime, size, sha, url);
-            } catch (BusinessException exception) {
-                if (exception.getErrorCode() != ErrorCode.PHOTO_UNAVAILABLE) throw exception;
-                result = check(assignment, mime, size, sha, storage.createReadUrl(objectKey, Duration.ofMinutes(urlMinutes)));
+                result = check(assignment, mime, size, sha, url, referenceUrl);
+            } catch (PhotoUnavailableException exception) {
+                if (exception.isReferencePhoto() && item.hasReferenceImage()) {
+                    referenceUrl = storage.createReadUrl(item.getReferenceImageKey(), Duration.ofMinutes(urlMinutes));
+                } else {
+                    url = storage.createReadUrl(objectKey, Duration.ofMinutes(urlMinutes));
+                }
+                result = check(assignment, mime, size, sha, url, referenceUrl);
             }
             if (result.status() == PhotoCheckStatus.PASS) {
                 attempt.pass(result.reason());
@@ -75,9 +83,22 @@ public class TaskAttemptService {
         }
     }
 
-    private PhotoCheckResult check(TaskAssignment assignment, String mime, long size, String sha, String url) {
+    private PhotoCheckResult check(TaskAssignment assignment, String mime, long size, String sha, String url, String referenceUrl) {
         var item = assignment.getTaskItemTemplate();
-        return ai.checkPhoto(new PhotoCheckCommand(item.getTitle(), item.getInstruction(), item.getVerificationRule(), mime, size, sha, url));
+        PhotoCheckCommand.PhotoResource submittedPhoto = new PhotoCheckCommand.PhotoResource(mime, size, sha, url);
+        PhotoCheckCommand.PhotoResource referencePhoto = item.hasReferenceImage()
+                ? new PhotoCheckCommand.PhotoResource(
+                        item.getReferenceImageMimeType(),
+                        item.getReferenceImageSizeBytes(),
+                        item.getReferenceImageSha256(),
+                        referenceUrl)
+                : null;
+        return ai.checkPhoto(new PhotoCheckCommand(
+                item.getTitle(),
+                item.getInstruction(),
+                item.getVerificationRule(),
+                submittedPhoto,
+                referencePhoto));
     }
 
     public List<TaskAttempt> history(long assignmentId, long memberId) {
