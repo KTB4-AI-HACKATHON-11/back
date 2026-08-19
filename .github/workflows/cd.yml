@@ -122,11 +122,6 @@ jobs:
 
           mkdir -p ~/hackathon/backend
 
-          if [ ! -f ~/hackathon/backend/.env ]; then
-            echo "ERROR: ~/hackathon/backend/.env 파일이 없습니다."
-            exit 1
-          fi
-
           docker network inspect hackathon-net >/dev/null 2>&1 || docker network create hackathon-net
           docker pull "$IMAGE_REF"
           docker rm -f backend 2>/dev/null || true
@@ -135,7 +130,6 @@ jobs:
             --name backend \
             --restart unless-stopped \
             --network hackathon-net \
-            --env-file ~/hackathon/backend/.env \
             -p 8080:8080 \
             "$IMAGE_REF"
 
