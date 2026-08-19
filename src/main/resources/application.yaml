@@ -22,16 +22,16 @@ logging:
     org.hibernate.SQL: debug
 
 ai:
-  base-url: ${AI_BASE_URL:http://localhost:8081}
-  service-token: ${AI_SERVICE_TOKEN:demo-token}
+  base-url: ${AI_BACKEND_BASE_URL:}
+  service-token: ${AI_SERVICE_TOKEN:}
   connect-timeout-seconds: ${AI_CONNECT_TIMEOUT_SECONDS:5}
   read-timeout-seconds: ${AI_READ_TIMEOUT_SECONDS:60}
-  stub-enabled: ${AI_STUB_ENABLED:true}
+  stub-enabled: ${AI_STUB_ENABLED:false}
 
 storage:
-  local-enabled: ${STORAGE_LOCAL_ENABLED:true}
-  bucket: ${S3_BUCKET:convenience-store-task-agent}
-  region: ${AWS_REGION:ap-northeast-2}
+  local-enabled: ${STORAGE_LOCAL_ENABLED:false}
+  bucket: ${S3_BUCKET:moamoa11}
+  region: ${AWS_REGION:ap-southeast-2}
   presigned-url-minutes: ${S3_PRESIGNED_URL_MINUTES:5}
 
 task:
