@@ -14,7 +14,6 @@ import com.ktb.hackathon.team11.global.exception.ErrorCode;
 import com.ktb.hackathon.team11.group.GroupService;
 import com.ktb.hackathon.team11.storage.FileStorage;
 import com.ktb.hackathon.team11.storage.PhotoInspector;
-import java.time.OffsetDateTime;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -36,7 +35,6 @@ class TaskChecklistGenerationServiceTest {
   @Test
   void generatesStatelessChecklistWithSequence() {
     String message = "조명을 켜고 카운터를 정리해줘";
-    OffsetDateTime dueAt = OffsetDateTime.parse("2026-08-21T09:30:00+09:00");
     when(ai.generateTasks(message))
         .thenReturn(
             List.of(
@@ -49,14 +47,12 @@ class TaskChecklistGenerationServiceTest {
                     "카운터 정리", "카운터 정리를 마친 뒤 완료를 체크해 주세요.", CompletionType.CHECK, null)));
 
     TaskTemplateService.GeneratedTasksResponse response =
-        service.generateTasks(1L, 1L, "  오픈 전 매장 점검  ", message, "  서연  ", dueAt);
+        service.generateTasks(1L, 1L, "  오픈 전 매장 점검  ", message);
 
     verify(groups).requireManager(1L, 1L);
     verify(ai).generateTasks(message);
     verifyNoInteractions(templates, items, photoInspector, storage);
     assertThat(response.title()).isEqualTo("오픈 전 매장 점검");
-    assertThat(response.assigneeName()).isEqualTo("서연");
-    assertThat(response.dueAt()).isEqualTo(dueAt);
     assertThat(response.checklists()).hasSize(2);
     assertThat(response.checklists().get(0).sequence()).isEqualTo(1);
     assertThat(response.checklists().get(0).completionType()).isEqualTo(CompletionType.PHOTO);
@@ -70,13 +66,7 @@ class TaskChecklistGenerationServiceTest {
 
     assertAiUnavailable(
         () ->
-            service.generateTasks(
-                1L,
-                1L,
-                "오픈 점검",
-                "업무를 생성해줘",
-                "서연",
-                OffsetDateTime.parse("2026-08-21T09:30:00+09:00")));
+            service.generateTasks(1L, 1L, "오픈 점검", "업무를 생성해줘"));
   }
 
   @Test
@@ -89,13 +79,7 @@ class TaskChecklistGenerationServiceTest {
 
     assertAiUnavailable(
         () ->
-            service.generateTasks(
-                1L,
-                1L,
-                "오픈 점검",
-                "업무를 생성해줘",
-                "서연",
-                OffsetDateTime.parse("2026-08-21T09:30:00+09:00")));
+            service.generateTasks(1L, 1L, "오픈 점검", "업무를 생성해줘"));
   }
 
   @Test
@@ -111,13 +95,7 @@ class TaskChecklistGenerationServiceTest {
 
     assertAiUnavailable(
         () ->
-            service.generateTasks(
-                1L,
-                1L,
-                "오픈 점검",
-                "업무를 생성해줘",
-                "서연",
-                OffsetDateTime.parse("2026-08-21T09:30:00+09:00")));
+            service.generateTasks(1L, 1L, "오픈 점검", "업무를 생성해줘"));
   }
 
   private void assertAiUnavailable(Runnable invocation) {

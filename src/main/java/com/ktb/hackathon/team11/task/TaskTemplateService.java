@@ -3,7 +3,6 @@ import com.ktb.hackathon.team11.ai.*;
 import com.ktb.hackathon.team11.global.exception.*;
 import com.ktb.hackathon.team11.group.*;
 import com.ktb.hackathon.team11.storage.*;
-import java.time.OffsetDateTime;
 import java.util.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -22,12 +21,7 @@ public class TaskTemplateService {
   private final FileStorage storage;
 
   public GeneratedTasksResponse generateTasks(
-      long groupId,
-      long managerId,
-      String title,
-      String message,
-      String assigneeName,
-      OffsetDateTime dueAt) {
+      long groupId, long managerId, String title, String message) {
     groups.requireManager(groupId, managerId);
     List<GeneratedTask> generatedTasks = ai.generateTasks(message);
     validateGeneratedTasks(generatedTasks);
@@ -44,8 +38,7 @@ public class TaskTemplateService {
               task.rule()));
     }
 
-    return new GeneratedTasksResponse(
-        title.strip(), message.strip(), assigneeName.strip(), dueAt, List.copyOf(checklists));
+    return new GeneratedTasksResponse(title.strip(), message.strip(), List.copyOf(checklists));
   }
 
   private void validateGeneratedTasks(List<GeneratedTask> tasks) {
@@ -142,11 +135,7 @@ public class TaskTemplateService {
   }
 
   public record GeneratedTasksResponse(
-      String title,
-      String message,
-      String assigneeName,
-      OffsetDateTime dueAt,
-      List<ChecklistResponse> checklists) {}
+      String title, String message, List<ChecklistResponse> checklists) {}
 
   public record ChecklistResponse(
       int sequence,

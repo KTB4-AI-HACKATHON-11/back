@@ -2,6 +2,8 @@ package com.ktb.hackathon.team11.storage;
 
 import com.ktb.hackathon.team11.global.exception.*;
 import java.time.Duration;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
@@ -14,6 +16,8 @@ import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignReques
 @Component
 @ConditionalOnProperty(name = "storage.local-enabled", havingValue = "false")
 public class S3FileStorage implements FileStorage {
+  private static final Logger log = LoggerFactory.getLogger(S3FileStorage.class);
+
   private final S3Client client;
   private final S3Presigner presigner;
   private final String bucket;
@@ -30,7 +34,22 @@ public class S3FileStorage implements FileStorage {
           PutObjectRequest.builder().bucket(bucket).key(key).contentType(mime).build(),
           RequestBody.fromBytes(bytes));
       return new StoredFile(key, createReadUrl(key, Duration.ofMinutes(5)));
+    } catch (S3Exception e) {
+      log.error(
+          "S3 upload failed bucket={} key={} status={} code={} requestId={}",
+          bucket,
+          key,
+          e.statusCode(),
+          e.awsErrorDetails() == null ? null : e.awsErrorDetails().errorCode(),
+          e.requestId());
+      throw new BusinessException(ErrorCode.STORAGE_UNAVAILABLE);
     } catch (RuntimeException e) {
+      log.error(
+          "S3 upload failed before receiving an AWS response bucket={} key={} type={} message={}",
+          bucket,
+          key,
+          e.getClass().getSimpleName(),
+          e.getMessage());
       throw new BusinessException(ErrorCode.STORAGE_UNAVAILABLE);
     }
   }

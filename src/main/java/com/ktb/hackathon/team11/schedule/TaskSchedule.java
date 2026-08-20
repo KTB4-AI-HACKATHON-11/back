@@ -77,6 +77,22 @@ public class TaskSchedule extends BaseEntity {
     lateAllowanceMinutes = late;
   }
 
+  public TaskSchedule(
+      TaskTemplate taskTemplate,
+      Member assignee,
+      LocalDateTime availableFrom,
+      LocalDateTime dueAt) {
+    if (assignee == null || !dueAt.isAfter(availableFrom))
+      throw new BusinessException(ErrorCode.INVALID_SCHEDULE);
+    this.taskTemplate = taskTemplate;
+    this.assignee = assignee;
+    startDate = availableFrom.toLocalDate();
+    endDate = dueAt.toLocalDate();
+    startTime = availableFrom.toLocalTime();
+    endTime = dueAt.toLocalTime();
+    recurrenceType = RecurrenceType.ONCE;
+  }
+
   public boolean occursOn(LocalDate date) {
     if (!active || date.isBefore(startDate) || endDate != null && date.isAfter(endDate))
       return false;
@@ -88,6 +104,8 @@ public class TaskSchedule extends BaseEntity {
   }
 
   public Window windowFor(LocalDate date) {
+    if (recurrenceType == RecurrenceType.ONCE && endDate != null)
+      return new Window(startDate.atTime(startTime), endDate.atTime(endTime));
     LocalDateTime start = date.atTime(startTime);
     LocalDateTime end = date.atTime(endTime);
     if (!endTime.isAfter(startTime)) end = end.plusDays(1);
