@@ -130,8 +130,6 @@ public class TaskVerificationService {
     if (command.completionType() == CompletionType.PHOTO) {
       if (command.rule() == null || command.rule().isBlank())
         throw new BusinessException(ErrorCode.VERIFICATION_RULE_REQUIRED);
-      if (command.referencePhotoIndex() == null)
-        throw new BusinessException(ErrorCode.REFERENCE_PHOTO_REQUIRED);
     } else {
       if (command.rule() != null || command.referencePhotoIndex() != null)
         throw new BusinessException(ErrorCode.INVALID_COMPLETION_TYPE);
