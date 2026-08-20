@@ -18,25 +18,27 @@ public class GroupService {
   private final SecureRandom random = new SecureRandom();
 
   @Transactional
-  public WorkGroup create(long managerId, String name) {
+  public WorkGroup create(long managerId, String name, String description) {
     Member manager = members.requireRole(managerId, MemberRole.MANAGER);
-    String code;
-    do {
-      code = String.format("%06d", random.nextInt(1_000_000));
-    } while (groups.existsByInviteCode(code));
-    WorkGroup group = groups.save(new WorkGroup(name, code, manager));
+    WorkGroup group =
+        groups.save(new WorkGroup(name, description, createLegacyCode(), manager));
     memberships.save(new GroupMember(group, manager));
     return group;
   }
 
+  private String createLegacyCode() {
+    String code;
+    do {
+      code = String.format("%06d", random.nextInt(1_000_000));
+    } while (groups.existsByInviteCode(code));
+    return code;
+  }
+
   @Transactional
-  public WorkGroup join(long memberId, String code) {
+  public WorkGroup join(long memberId, long groupId) {
     Member member = members.requireMember(memberId);
-    WorkGroup group =
-        groups
-            .findByInviteCode(code)
-            .orElseThrow(() -> new BusinessException(ErrorCode.GROUP_NOT_FOUND));
-    if (memberships.existsByGroupIdAndMemberId(group.getId(), memberId))
+    WorkGroup group = requireGroup(groupId);
+    if (memberships.existsByGroupIdAndMemberId(groupId, memberId))
       throw new BusinessException(ErrorCode.ALREADY_GROUP_MEMBER);
     memberships.save(new GroupMember(group, member));
     return group;
