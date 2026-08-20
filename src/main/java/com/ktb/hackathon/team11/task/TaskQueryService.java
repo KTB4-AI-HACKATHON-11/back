@@ -105,7 +105,7 @@ public class TaskQueryService {
     TaskAttempt attempt = attempts.findFirstByAssignmentIdOrderByAttemptNumberDesc(assignment.getId()).orElse(null);
     TaskPhoto photo = attempt == null ? null : photos.findByAttemptId(attempt.getId()).orElse(null);
     return new Checklist(
-        item.getId(),
+        assignment.getId(),
         item.getSequence(),
         item.getTitle(),
         item.getInstruction(),
