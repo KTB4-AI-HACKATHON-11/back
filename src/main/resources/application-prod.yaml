@@ -1,0 +1,18 @@
+server:
+  forward-headers-strategy: framework
+
+cors:
+  allowed-origin-patterns: https://checkon.cloud
+
+openapi:
+  server-url: https://api.checkon.cloud
+
+spring:
+  jpa:
+    properties:
+      hibernate:
+        format_sql: false
+
+logging:
+  level:
+    org.hibernate.SQL: info

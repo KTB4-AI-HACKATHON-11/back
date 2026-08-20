@@ -121,10 +121,12 @@ jobs:
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
           AWS_REGION: ${{ vars.AWS_REGION }}
           S3_BUCKET: ${{ vars.S3_BUCKET }}
+          AI_BACKEND_BASE_URL: ${{ secrets.AI_BACKEND_BASE_URL }}
+          AI_SERVICE_TOKEN: ${{ secrets.AI_SERVICE_TOKEN }}
         run: |
           set -euo pipefail
           ssh -i ~/.ssh/deploy_key ubuntu@"$APP_HOST" \
-            "IMAGE_REF='$IMAGE_REF' DB_HOST='$DB_HOST' DB_PORT='$DB_PORT' DB_NAME='$DB_NAME' DB_USERNAME='$DB_USERNAME' DB_PASSWORD='$DB_PASSWORD' AWS_REGION='$AWS_REGION' S3_BUCKET='$S3_BUCKET' bash -s" <<'REMOTE'
+            "IMAGE_REF='$IMAGE_REF' DB_HOST='$DB_HOST' DB_PORT='$DB_PORT' DB_NAME='$DB_NAME' DB_USERNAME='$DB_USERNAME' DB_PASSWORD='$DB_PASSWORD' AWS_REGION='$AWS_REGION' S3_BUCKET='$S3_BUCKET' AI_BACKEND_BASE_URL='$AI_BACKEND_BASE_URL' AI_SERVICE_TOKEN='$AI_SERVICE_TOKEN' bash -s" <<'REMOTE'
           set -euo pipefail
 
           mkdir -p ~/hackathon/backend
@@ -138,13 +140,23 @@ jobs:
             --restart unless-stopped \
             --network hackathon-net \
             -p 8080:8080 \
+            -e SPRING_PROFILES_ACTIVE=prod \
             -e DB_URL="jdbc:mysql://${DB_HOST}:${DB_PORT}/${DB_NAME}?serverTimezone=Asia/Seoul&characterEncoding=UTF-8" \
             -e DB_USERNAME="${DB_USERNAME}" \
             -e DB_PASSWORD="${DB_PASSWORD}" \
             -e AWS_REGION="${AWS_REGION}" \
             -e S3_BUCKET="${S3_BUCKET}" \
+            -e AI_BACKEND_BASE_URL="${AI_BACKEND_BASE_URL}" \
+            -e AI_SERVICE_TOKEN="${AI_SERVICE_TOKEN}" \
             "$IMAGE_REF"
 
-          sleep 5
-          docker ps --filter name=backend --filter status=running --format '{{.Names}}' | grep -qx backend
+          for attempt in $(seq 1 20); do
+            if curl --fail --silent http://127.0.0.1:8080/v3/api-docs >/dev/null; then
+              exit 0
+            fi
+            sleep 3
+          done
+
+          docker logs --tail 200 backend
+          exit 1
           REMOTE
