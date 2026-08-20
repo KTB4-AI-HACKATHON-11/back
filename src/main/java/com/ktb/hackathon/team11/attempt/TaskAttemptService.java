@@ -10,6 +10,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.*;
@@ -31,33 +33,36 @@ public class TaskAttemptService {
     @Value("${storage.presigned-url-minutes:5}") private long urlMinutes;
 
     @Transactional
-    public TaskAttempt submit(long assignmentId, long workerId, MultipartFile file) {
+    public Result submit(long assignmentId, long workerId, MultipartFile file) {
         Member worker = members.requireRole(workerId, MemberRole.WORKER);
-        TaskAssignment assignment = assignmentService.require(assignmentId);
+        TaskAssignment assignment = assignmentService.requireForUpdate(assignmentId);
         long groupId = assignment.getSchedule().getTaskTemplate().getGroup().getId();
         groups.requireMember(groupId, workerId);
         if (assignment.getAssignee() != null && !assignment.getAssignee().getId().equals(workerId)) throw new BusinessException(ErrorCode.GROUP_ACCESS_DENIED);
         if (assignment.getTaskItemTemplate().getCompletionType() != CompletionType.PHOTO) throw new BusinessException(ErrorCode.INVALID_COMPLETION_TYPE);
         LocalDateTime now = LocalDateTime.now(clock);
-        assignment.requireAvailable(now);
+        assignment.requirePhotoSubmissionAvailable(now);
         PhotoInspector.InspectedPhoto photo = inspector.inspect(file);
         if (photos.existsByGroupIdAndSha256(groupId, photo.sha256())) throw new BusinessException(ErrorCode.DUPLICATE_PHOTO);
         int number = (int) attempts.countByAssignmentId(assignmentId) + 1;
         TaskAttempt attempt = attempts.save(new TaskAttempt(assignment, worker, number, now));
         String key = "groups/" + groupId + "/assignments/" + assignmentId + "/attempts/" + UUID.randomUUID() + "." + photo.extension();
+        List<String> rollbackKeys = new ArrayList<>();
+        rollbackKeys.add(key);
+        registerRollbackCleanup(rollbackKeys);
         StoredFile stored = storage.store(key, photo.bytes(), photo.mimeType());
         photos.save(new TaskPhoto(attempt, assignment.getSchedule().getTaskTemplate().getGroup(), key, photo.mimeType(), photo.sizeBytes(), photo.sha256()));
         assignment.verifying();
         evaluate(assignment, attempt, photo.mimeType(), photo.sizeBytes(), photo.sha256(), key, stored.url());
-        return attempt;
+        return Result.from(attempt);
     }
 
     private void evaluate(TaskAssignment assignment, TaskAttempt attempt, String mime, long size, String sha, String objectKey, String url) {
         try {
             var item = assignment.getTaskItemTemplate();
-            String referenceUrl = item.hasReferenceImage()
-                    ? storage.createReadUrl(item.getReferenceImageKey(), Duration.ofMinutes(urlMinutes))
-                    : null;
+            if (!item.hasReferenceImage())
+                throw new BusinessException(ErrorCode.REFERENCE_PHOTO_REQUIRED);
+            String referenceUrl = storage.createReadUrl(item.getReferenceImageKey(), Duration.ofMinutes(urlMinutes));
             PhotoCheckResult result;
             try {
                 result = check(assignment, mime, size, sha, url, referenceUrl);
@@ -101,23 +106,54 @@ public class TaskAttemptService {
                 referencePhoto));
     }
 
-    public List<TaskAttempt> history(long assignmentId, long memberId) {
+    public List<Result> history(long assignmentId, long memberId) {
         TaskAssignment assignment = assignmentService.require(assignmentId);
         groups.requireMember(assignment.getSchedule().getTaskTemplate().getGroup().getId(), memberId);
-        return attempts.findAllByAssignmentIdOrderByAttemptNumber(assignmentId);
+        return attempts.findAllByAssignmentIdOrderByAttemptNumber(assignmentId).stream()
+                .map(Result::from)
+                .toList();
     }
 
     @Transactional
-    public TaskAttempt retry(long attemptId, long managerId) {
+    public Result retry(long attemptId, long managerId) {
         TaskAttempt attempt = attempts.findById(attemptId).orElseThrow(() -> new BusinessException(ErrorCode.ATTEMPT_NOT_FOUND));
-        TaskAssignment assignment = attempt.getAssignment();
+        TaskAssignment assignment = assignmentService.requireForUpdate(attempt.getAssignment().getId());
         groups.requireManager(assignment.getSchedule().getTaskTemplate().getGroup().getId(), managerId);
-        if (attempt.getStatus() != AttemptStatus.DELAYED) throw new BusinessException(ErrorCode.TASK_NOT_AVAILABLE);
+        if (attempt.getStatus() != AttemptStatus.DELAYED || assignment.getStatus() != AssignmentStatus.VERIFICATION_DELAYED) throw new BusinessException(ErrorCode.TASK_NOT_AVAILABLE);
         TaskPhoto photo = photos.findByAttemptId(attemptId).orElseThrow(() -> new BusinessException(ErrorCode.INVALID_PHOTO));
         attempt.verifying();
         assignment.verifying();
         String url = storage.createReadUrl(photo.getObjectKey(), Duration.ofMinutes(urlMinutes));
         evaluate(assignment, attempt, photo.getMimeType(), photo.getSizeBytes(), photo.getSha256(), photo.getObjectKey(), url);
-        return attempt;
+        return Result.from(attempt);
+    }
+
+    private void registerRollbackCleanup(List<String> objectKeys) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) return;
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCompletion(int status) {
+                if (status == STATUS_ROLLED_BACK) objectKeys.forEach(storage::delete);
+            }
+        });
+    }
+
+    public record Result(
+            Long attemptId,
+            int attemptNumber,
+            AttemptStatus status,
+            AssignmentStatus assignmentStatus,
+            String reason,
+            String fix
+    ) {
+        static Result from(TaskAttempt attempt) {
+            return new Result(
+                    attempt.getId(),
+                    attempt.getAttemptNumber(),
+                    attempt.getStatus(),
+                    attempt.getAssignment().getStatus(),
+                    attempt.getReason(),
+                    attempt.getFixMessage());
+        }
     }
 }

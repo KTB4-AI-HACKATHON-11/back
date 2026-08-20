@@ -68,6 +68,15 @@ public class TaskAssignment extends BaseEntity {
       throw new BusinessException(ErrorCode.TASK_NOT_AVAILABLE);
   }
 
+  public void requirePhotoSubmissionAvailable(LocalDateTime now) {
+    if (now.isBefore(availableFrom) || now.isAfter(dueAt))
+      throw new BusinessException(ErrorCode.TASK_NOT_AVAILABLE);
+    if (status == AssignmentStatus.COMPLETED)
+      throw new BusinessException(ErrorCode.ASSIGNMENT_ALREADY_COMPLETED);
+    if (status != AssignmentStatus.PENDING && status != AssignmentStatus.RETAKE_REQUIRED)
+      throw new BusinessException(ErrorCode.TASK_NOT_AVAILABLE);
+  }
+
   public void completeCheck(LocalDateTime now) {
     requireAvailable(now);
     if (taskItemTemplate.getCompletionType() != CompletionType.CHECK)

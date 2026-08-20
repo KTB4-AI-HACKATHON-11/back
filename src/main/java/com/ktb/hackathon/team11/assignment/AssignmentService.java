@@ -24,6 +24,12 @@ public class AssignmentService {
         .orElseThrow(() -> new BusinessException(ErrorCode.ASSIGNMENT_NOT_FOUND));
   }
 
+  public TaskAssignment requireForUpdate(long id) {
+    return repository
+        .findByIdForUpdate(id)
+        .orElseThrow(() -> new BusinessException(ErrorCode.ASSIGNMENT_NOT_FOUND));
+  }
+
   public List<TaskAssignment> worker(long workerId, LocalDate date) {
     members.requireRole(workerId, MemberRole.WORKER);
     List<TaskAssignment> result =
