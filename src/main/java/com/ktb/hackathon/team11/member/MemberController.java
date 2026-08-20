@@ -19,14 +19,14 @@ public class MemberController {
 
   @Operation(
       summary = "회원가입",
-      description = "닉네임과 역할을 등록합니다. MANAGER는 그룹과 업무를 관리하고 WORKER는 배정 업무를 수행합니다.",
+      description = "닉네임만 등록하며 기본 역할은 MANAGER입니다.",
       responses = {
         @io.swagger.v3.oas.annotations.responses.ApiResponse(
             responseCode = "201",
             description = "회원가입 성공"),
         @io.swagger.v3.oas.annotations.responses.ApiResponse(
             responseCode = "400",
-            description = "닉네임 또는 역할 형식 오류"),
+            description = "닉네임 형식 오류"),
         @io.swagger.v3.oas.annotations.responses.ApiResponse(
             responseCode = "409",
             description = "이미 사용 중인 닉네임")
@@ -35,7 +35,7 @@ public class MemberController {
   @ResponseStatus(HttpStatus.CREATED)
   ApiResponse<MemberResponse> create(@Valid @RequestBody CreateMemberRequest request) {
     return ApiResponse.of(
-        "MEMBER_CREATED", MemberResponse.from(service.create(request.nickname(), request.role())));
+        "MEMBER_CREATED", MemberResponse.from(service.create(request.nickname())));
   }
 
   @Operation(
@@ -57,13 +57,7 @@ public class MemberController {
   @Schema(description = "회원가입 요청")
   public record CreateMemberRequest(
       @Schema(description = "중복되지 않는 닉네임", example = "야간알바") @NotBlank @Size(max = 30)
-          String nickname,
-      @Schema(
-              description = "서비스 역할",
-              example = "WORKER",
-              allowableValues = {"MANAGER", "WORKER"})
-          @NotNull
-          MemberRole role) {}
+          String nickname) {}
 
   @Schema(description = "데모 로그인 요청")
   public record LoginRequest(

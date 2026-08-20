@@ -13,11 +13,11 @@ public class MemberService {
   private final MemberRepository repository;
 
   @Transactional
-  public Member create(String nickname, MemberRole role) {
+  public Member create(String nickname) {
     String normalized = nickname.strip();
     if (repository.existsByNickname(normalized))
       throw new BusinessException(ErrorCode.DUPLICATE_NICKNAME);
-    return repository.save(new Member(normalized, role));
+    return repository.save(new Member(normalized, MemberRole.MANAGER));
   }
 
   public Member login(String nickname) {
