@@ -1,10 +1,12 @@
 package com.ktb.hackathon.team11.notification;
 
 import java.nio.charset.StandardCharsets;
+import java.security.Security;
 import nl.martijndwars.webpush.Notification;
 import nl.martijndwars.webpush.PushService;
 import org.apache.http.HttpResponse;
 import org.apache.http.util.EntityUtils;
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -26,6 +28,8 @@ public class WebPushSender {
     this.subject = subject;
     if (enabled && (publicKey.isBlank() || privateKey.isBlank() || subject.isBlank()))
       throw new IllegalStateException("Web Push VAPID 설정이 필요합니다.");
+    if (enabled && Security.getProvider(BouncyCastleProvider.PROVIDER_NAME) == null)
+      Security.addProvider(new BouncyCastleProvider());
   }
 
   public boolean isEnabled() {
