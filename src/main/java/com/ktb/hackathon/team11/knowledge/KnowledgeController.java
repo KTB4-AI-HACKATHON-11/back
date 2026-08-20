@@ -26,11 +26,22 @@ public class KnowledgeController {
   ApiResponse<KnowledgeService.AnswerResponse> answer(
       @Valid @RequestBody AnswerRequest request) {
     return ApiResponse.of(
-        "KNOWLEDGE_ANSWERED", service.answer(request.conversationId(), request.question()));
+        "KNOWLEDGE_ANSWERED",
+        service.answer(
+            request.groupId(),
+            request.requesterId(),
+            request.conversationId(),
+            request.question()));
   }
 
   @Schema(description = "매장 정보 질문 요청")
   public record AnswerRequest(
+      @Schema(description = "매장 정보가 속한 그룹 ID", example = "1")
+          @jakarta.validation.constraints.NotNull
+          Long groupId,
+      @Schema(description = "질문하는 그룹 구성원 ID", example = "2")
+          @jakarta.validation.constraints.NotNull
+          Long requesterId,
       @Schema(description = "이전 응답에서 받은 대화 ID", example = "3fa85f64-5717-4562-b3fc-2c963f66afa6")
           @Size(max = 100, message = "대화 ID는 100자를 초과할 수 없습니다.")
           String conversationId,

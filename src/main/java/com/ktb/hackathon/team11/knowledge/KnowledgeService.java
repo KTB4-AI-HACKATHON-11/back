@@ -1,43 +1,54 @@
 package com.ktb.hackathon.team11.knowledge;
 
 import com.ktb.hackathon.team11.ai.AiTaskClient;
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
+import com.ktb.hackathon.team11.group.GroupService;
+import com.ktb.hackathon.team11.store.StoreInfo;
+import com.ktb.hackathon.team11.store.StoreInfoCategory;
+import com.ktb.hackathon.team11.store.StoreInfoRepository;
 import java.util.ArrayDeque;
 import java.util.Deque;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 
 @Service
 public class KnowledgeService {
 
   private final AiTaskClient ai;
-  private final String information;
+  private final StoreInfoRepository infos;
+  private final GroupService groups;
   private final ConcurrentMap<String, Conversation> conversations = new ConcurrentHashMap<>();
 
   private static final int MAX_TURNS = 10;
   private static final int MAX_QUESTION_LENGTH = 60_000;
 
-  public KnowledgeService(
-      AiTaskClient ai, @Value("classpath:store-knowledge.txt") Resource informationResource) {
+  public KnowledgeService(AiTaskClient ai, StoreInfoRepository infos, GroupService groups) {
     this.ai = ai;
-    this.information = readInformation(informationResource);
+    this.infos = infos;
+    this.groups = groups;
   }
 
-  public AnswerResponse answer(String conversationId, String question) {
+  public AnswerResponse answer(
+      long groupId, long requesterId, String conversationId, String question) {
+    groups.requireGroup(groupId);
+    groups.requireMember(groupId, requesterId);
+    List<StoreInfo> items = infos.findAllByGroupIdOrderByCategoryAscIdAsc(groupId);
+    if (items.isEmpty()) {
+      return new AnswerResponse(
+          "아직 등록된 매장 정보가 없어요. 매니저에게 문의해 주세요.", conversationId);
+    }
+    String information = format(items);
     String id = conversationId == null || conversationId.isBlank()
         ? UUID.randomUUID().toString()
-        : conversationId;
+        : groupId + ":" + conversationId;
     Conversation conversation = conversations.computeIfAbsent(id, ignored -> new Conversation());
     synchronized (conversation) {
       String prompt = questionWithHistory(conversation, question);
       String answer = ai.answerKnowledge(information, prompt);
       conversation.add(question, answer);
-      return new AnswerResponse(answer, id);
+      return new AnswerResponse(answer, conversationId == null ? id : conversationId);
     }
   }
 
@@ -57,16 +68,29 @@ public class KnowledgeService {
     return history.toString();
   }
 
-  private String readInformation(Resource resource) {
-    try {
-      String value = resource.getContentAsString(StandardCharsets.UTF_8).strip();
-      if (value.isBlank() || value.length() > 60_000) {
-        throw new IllegalStateException("Store knowledge must contain 1 to 60000 characters");
+  private String format(List<StoreInfo> items) {
+    StringBuilder result = new StringBuilder();
+    StoreInfoCategory previous = null;
+    for (StoreInfo info : items) {
+      if (info.getCategory() != previous) {
+        if (!result.isEmpty()) result.append('\n');
+        result.append('[').append(categoryLabel(info.getCategory())).append("]\n");
+        previous = info.getCategory();
       }
-      return value;
-    } catch (IOException exception) {
-      throw new IllegalStateException("Failed to load store knowledge", exception);
+      result.append(info.getTitle()).append(": ").append(info.getContent()).append('\n');
     }
+    return result.toString();
+  }
+
+  private String categoryLabel(StoreInfoCategory category) {
+    return switch (category) {
+      case LOCATION -> "매장 위치";
+      case PROMOTION -> "프로모션";
+      case DELIVERY -> "택배·입고";
+      case EQUIPMENT -> "장비";
+      case RULE -> "운영 규칙";
+      case ETC -> "기타";
+    };
   }
 
   public record AnswerResponse(String answer, String conversationId) {}
