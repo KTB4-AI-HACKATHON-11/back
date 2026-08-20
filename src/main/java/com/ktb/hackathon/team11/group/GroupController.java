@@ -155,7 +155,11 @@ public class GroupController {
       @Schema(description = "그룹명", example = "성수 플래그십 스토어") String name,
       @Schema(description = "그룹 설명", example = "오픈 준비부터 마감 점검까지 현장 운영 업무를 관리합니다.")
           String description,
+      @Schema(description = "그룹 관리자 수", example = "1") long managerCount,
+      @Schema(description = "그룹 알바생 수", example = "7") long workerCount,
       @Schema(description = "그룹 전체 인원 수", example = "8") long memberCount,
+      @Schema(description = "활성 태스크 수", example = "3") long taskCount,
+      @Schema(description = "전체 체크리스트 완료율(%)", example = "58") int completionRate,
       @Schema(description = "조회 회원의 그룹 내 역할", example = "MANAGER") MemberRole role) {
     static GroupDetailResponse from(GroupService.GroupDetail detail) {
       WorkGroup group = detail.group();
@@ -163,7 +167,11 @@ public class GroupController {
           group.getId(),
           group.getName(),
           group.getDescription(),
+          detail.managerCount(),
+          detail.workerCount(),
           detail.memberCount(),
+          detail.taskCount(),
+          detail.completionRate(),
           detail.role());
     }
   }

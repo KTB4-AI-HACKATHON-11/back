@@ -1,7 +1,10 @@
 package com.ktb.hackathon.team11.group;
 
+import com.ktb.hackathon.team11.assignment.AssignmentStatus;
+import com.ktb.hackathon.team11.assignment.TaskAssignmentRepository;
 import com.ktb.hackathon.team11.global.exception.*;
 import com.ktb.hackathon.team11.member.*;
+import com.ktb.hackathon.team11.task.TaskTemplateRepository;
 import java.security.SecureRandom;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -16,6 +19,8 @@ public class GroupService {
   private final WorkGroupRepository groups;
   private final GroupMemberRepository memberships;
   private final MemberService members;
+  private final TaskTemplateRepository templates;
+  private final TaskAssignmentRepository assignments;
   private final SecureRandom random = new SecureRandom();
 
   @Transactional
@@ -52,7 +57,24 @@ public class GroupService {
   public GroupDetail detail(long groupId, long memberId) {
     WorkGroup group = requireGroup(groupId);
     GroupMember membership = requireMember(groupId, memberId);
-    return new GroupDetail(group, memberships.countByGroupId(groupId), membership.getGroupRole());
+    long memberCount = memberships.countByGroupId(groupId);
+    long managerCount = memberships.countByGroupIdAndGroupRole(groupId, MemberRole.MANAGER);
+    long workerCount = memberships.countByGroupIdAndGroupRole(groupId, MemberRole.WORKER);
+    long taskCount = templates.countByGroupIdAndActiveTrue(groupId);
+    long assignmentCount = assignments.countByScheduleTaskTemplateGroupId(groupId);
+    long completedCount =
+        assignments.countByScheduleTaskTemplateGroupIdAndStatus(
+            groupId, AssignmentStatus.COMPLETED);
+    int completionRate =
+        assignmentCount == 0 ? 0 : Math.round(completedCount * 100f / assignmentCount);
+    return new GroupDetail(
+        group,
+        managerCount,
+        workerCount,
+        memberCount,
+        taskCount,
+        completionRate,
+        membership.getGroupRole());
   }
 
   public GroupMember requireMember(long groupId, long memberId) {
@@ -90,5 +112,12 @@ public class GroupService {
     return memberships.findAllByGroupId(groupId);
   }
 
-  public record GroupDetail(WorkGroup group, long memberCount, MemberRole role) {}
+  public record GroupDetail(
+      WorkGroup group,
+      long managerCount,
+      long workerCount,
+      long memberCount,
+      long taskCount,
+      int completionRate,
+      MemberRole role) {}
 }

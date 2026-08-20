@@ -70,6 +70,7 @@ class TaskQueryControllerTest {
                     "POS 화면을 확인해 주세요.",
                     CompletionType.PHOTO,
                     "POS가 켜져 있어야 합니다.",
+                    true,
                     "https://example.com/reference.png",
                     false,
                     null,

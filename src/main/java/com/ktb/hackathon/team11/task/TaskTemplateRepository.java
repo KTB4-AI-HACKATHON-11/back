@@ -7,4 +7,6 @@ public interface TaskTemplateRepository extends JpaRepository<TaskTemplate, Long
   List<TaskTemplate> findAllByGroupIdAndActiveTrue(Long groupId);
 
   List<TaskTemplate> findAllByGroupIdAndActiveTrueOrderByCreatedAtDesc(Long groupId);
+
+  long countByGroupIdAndActiveTrue(Long groupId);
 }
