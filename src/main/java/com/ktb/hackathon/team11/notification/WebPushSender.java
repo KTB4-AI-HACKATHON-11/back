@@ -53,7 +53,7 @@ public class WebPushSender {
               ? ""
               : response.getFirstHeader("apns-id").getValue();
       return new DeliveryResult(response.getStatusLine().getStatusCode(), body, requestId);
-    } catch (Exception exception) {
+    } catch (Exception | LinkageError exception) {
       return new DeliveryResult(0, exception.getClass().getSimpleName(), "");
     }
   }
