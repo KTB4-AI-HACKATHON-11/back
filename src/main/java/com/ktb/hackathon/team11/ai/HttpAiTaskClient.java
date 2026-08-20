@@ -1,105 +1,136 @@
 package com.ktb.hackathon.team11.ai;
 
 import com.ktb.hackathon.team11.global.exception.*;
-import java.net.http.HttpClient;
-import java.time.Duration;
-import java.util.*;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.*;
+import tools.jackson.databind.ObjectMapper;
+
+import java.io.IOException;
+import java.net.http.HttpClient;
+import java.time.Duration;
+import java.util.List;
 
 @Component
-@ConditionalOnProperty(name = "ai.stub-enabled", havingValue = "false")
+@ConditionalOnProperty(name = "ai.stub-enabled", havingValue = "false", matchIfMissing = true)
 public class HttpAiTaskClient implements AiTaskClient {
-  private final RestClient client;
+    private static final Logger log = LoggerFactory.getLogger(HttpAiTaskClient.class);
+    private final RestClient client;
+    private final ObjectMapper objectMapper;
 
-  public HttpAiTaskClient(
-      RestClient.Builder builder,
-      @Value("${ai.base-url}") String baseUrl,
-      @Value("${ai.service-token}") String token,
-      @Value("${ai.connect-timeout-seconds:5}") long connectTimeout,
-      @Value("${ai.read-timeout-seconds:60}") long readTimeout) {
-    HttpClient httpClient =
-        HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(connectTimeout)).build();
-    JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(httpClient);
-    requestFactory.setReadTimeout(Duration.ofSeconds(readTimeout));
-    this.client =
-        builder
-            .requestFactory(requestFactory)
-            .baseUrl(baseUrl)
-            .defaultHeader("Authorization", "Bearer " + token)
-            .build();
-  }
+    public HttpAiTaskClient(
+            RestClient.Builder builder,
+            ObjectMapper objectMapper,
+            @Value("${ai.base-url}") String baseUrl,
+            @Value("${ai.service-token}") String token,
+            @Value("${ai.connect-timeout-seconds:5}") long connectTimeout,
+            @Value("${ai.read-timeout-seconds:60}") long readTimeout
+    ) {
+        HttpClient httpClient = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(connectTimeout))
+                .build();
+        JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(httpClient);
+        requestFactory.setReadTimeout(Duration.ofSeconds(readTimeout));
+        this.client = builder
+                .requestFactory(requestFactory)
+                .baseUrl(baseUrl)
+                .defaultHeader("Authorization", "Bearer " + token)
+                .build();
+        this.objectMapper = objectMapper;
+    }
 
-  @Override
-  public List<GeneratedTask> generateTasks(String message) {
-    GenerateResponse response =
-        exchangeWithRetry(
-            "/v1/tasks/generate", new GenerateRequest(message), GenerateResponse.class);
-    if (response == null
-        || response.tasks() == null
-        || response.tasks().isEmpty()
-        || response.tasks().size() > 20) throw new BusinessException(ErrorCode.AI_UNAVAILABLE);
-    return response.tasks().stream()
-        .map(t -> new GeneratedTask(t.title(), t.instruction(), t.completionType(), t.rule()))
-        .toList();
-  }
+    @Override
+    public List<GeneratedTask> generateTasks(String message) {
+        GenerateResponse response = exchangeWithRetry("/v1/tasks/generate", new GenerateRequest(message), GenerateResponse.class);
+        if (response == null || response.tasks() == null || response.tasks().isEmpty() || response.tasks().size() > 20) {
+            log.warn("AI task generation returned an invalid task collection");
+            throw new BusinessException(ErrorCode.AI_UNAVAILABLE);
+        }
+        List<GeneratedTask> tasks = response.tasks().stream()
+                .map(task -> new GeneratedTask(task.title(), task.instruction(), task.completionType(), task.rule()))
+                .toList();
+        tasks.forEach(this::validateGeneratedTask);
+        return tasks;
+    }
 
-  @Override
-  public PhotoCheckResult checkPhoto(PhotoCheckCommand c) {
-    CheckRequest request =
-        new CheckRequest(
-            new TaskPayload(c.title(), c.instruction(), c.rule()),
-            new PhotoPayload(c.mimeType(), c.sizeBytes(), c.sha256(), c.url()));
-    CheckResponse r = exchangeWithRetry("/v1/attempts/check", request, CheckResponse.class);
-    if (r == null || r.status() == null || r.reason() == null)
-      throw new BusinessException(ErrorCode.AI_UNAVAILABLE);
-    return new PhotoCheckResult(r.status(), r.reason(), r.fix());
-  }
+    @Override
+    public PhotoCheckResult checkPhoto(PhotoCheckCommand command) {
+        CheckRequest request = new CheckRequest(
+                new TaskPayload(command.title(), command.instruction(), command.rule()),
+                PhotoPayload.from(command.photo()),
+                PhotoPayload.from(command.referencePhoto())
+        );
+        CheckResponse response = exchangeWithRetry("/v1/attempts/check", request, CheckResponse.class);
+        if (response == null || response.status() == null || response.reason() == null || response.reason().isBlank() || response.reason().length() > 500) {
+            log.warn("AI photo check returned an invalid response shape");
+            throw new BusinessException(ErrorCode.AI_UNAVAILABLE);
+        }
+        if (response.status() == PhotoCheckStatus.RETAKE && (response.fix() == null || response.fix().isBlank() || response.fix().length() > 500)) {
+            log.warn("AI photo check RETAKE response did not include a valid fix message");
+            throw new BusinessException(ErrorCode.AI_UNAVAILABLE);
+        }
+        return new PhotoCheckResult(response.status(), response.reason(), response.status() == PhotoCheckStatus.PASS ? null : response.fix());
+    }
 
-  private <T> T exchangeWithRetry(String path, Object body, Class<T> type) {
-    BusinessException last = null;
-    for (int i = 0; i < 2; i++)
-      try {
-        return client
-            .post()
-            .uri(path)
-            .body(body)
-            .retrieve()
-            .onStatus(
-                HttpStatusCode::isError,
-                (req, res) -> {
-                  int status = res.getStatusCode().value();
-                  if (status == 400) throw new BusinessException(ErrorCode.AI_INVALID_REQUEST);
-                  if (status == 401) throw new BusinessException(ErrorCode.AI_UNAUTHORIZED);
-                  if (status == 422) throw new BusinessException(ErrorCode.PHOTO_UNAVAILABLE);
-                  throw new BusinessException(ErrorCode.AI_UNAVAILABLE);
-                })
-            .body(type);
-      } catch (BusinessException e) {
-        last = e;
-        if (e.getErrorCode() != ErrorCode.AI_UNAVAILABLE) throw e;
-      } catch (RestClientException e) {
-        last = new BusinessException(ErrorCode.AI_UNAVAILABLE);
-      }
-    throw last == null ? new BusinessException(ErrorCode.AI_UNAVAILABLE) : last;
-  }
+    private void validateGeneratedTask(GeneratedTask task) {
+        boolean invalidText = task.title() == null || task.title().isBlank() || task.title().length() > 80
+                || task.instruction() == null || task.instruction().isBlank() || task.instruction().length() > 500;
+        boolean invalidRule = task.completionType() == null
+                || task.completionType() == CompletionType.PHOTO && (task.rule() == null || task.rule().isBlank() || task.rule().length() > 1000)
+                || task.completionType() == CompletionType.CHECK && task.rule() != null;
+        if (invalidText || invalidRule) throw new BusinessException(ErrorCode.AI_UNAVAILABLE);
+    }
 
-  record GenerateRequest(String message) {}
+    private <T> T exchangeWithRetry(String path, Object body, Class<T> responseType) {
+        BusinessException last = null;
+        for (int attempt = 0; attempt < 2; attempt++) {
+            try {
+                return client.post().uri(path).body(body).retrieve()
+                        .onStatus(HttpStatusCode::isError, (request, response) -> handleError(response))
+                        .body(responseType);
+            } catch (PhotoUnavailableException exception) {
+                log.warn("AI backend could not read photo field={}", exception.getField());
+                throw exception;
+            } catch (BusinessException exception) {
+                last = exception;
+                log.warn("AI backend business failure path={} attempt={} code={}", path, attempt + 1, exception.getErrorCode());
+                if (exception.getErrorCode() != ErrorCode.AI_UNAVAILABLE) throw exception;
+            } catch (RestClientException exception) {
+                log.warn("AI backend transport failure path={} attempt={} type={}", path, attempt + 1, exception.getClass().getSimpleName());
+                last = new BusinessException(ErrorCode.AI_UNAVAILABLE);
+            }
+        }
+        throw last == null ? new BusinessException(ErrorCode.AI_UNAVAILABLE) : last;
+    }
 
-  record GenerateResponse(List<TaskPayloadResponse> tasks) {}
+    private void handleError(org.springframework.http.client.ClientHttpResponse response) throws IOException {
+        int status = response.getStatusCode().value();
+        if (status == 400) throw new BusinessException(ErrorCode.AI_INVALID_REQUEST);
+        if (status == 401) throw new BusinessException(ErrorCode.AI_UNAUTHORIZED);
+        if (status == 422) {
+            ErrorEnvelope envelope = objectMapper.readValue(response.getBody(), ErrorEnvelope.class);
+            throw new PhotoUnavailableException(envelope != null && envelope.error() != null ? envelope.error().field() : null);
+        }
+        throw new BusinessException(ErrorCode.AI_UNAVAILABLE);
+    }
 
-  record TaskPayloadResponse(
-      String title, String instruction, CompletionType completionType, String rule) {}
-
-  record CheckRequest(TaskPayload task, PhotoPayload photo) {}
-
-  record TaskPayload(String title, String instruction, String rule) {}
-
-  record PhotoPayload(String mimeType, long sizeBytes, String sha256, String url) {}
-
-  record CheckResponse(PhotoCheckStatus status, String reason, String fix) {}
+    record GenerateRequest(String message) {}
+    record GenerateResponse(List<TaskPayloadResponse> tasks) {}
+    record TaskPayloadResponse(String title, String instruction, CompletionType completionType, String rule) {}
+    @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+    record CheckRequest(TaskPayload task, PhotoPayload photo, PhotoPayload referencePhoto) {}
+    record TaskPayload(String title, String instruction, String rule) {}
+    record PhotoPayload(String mimeType, long sizeBytes, String sha256, String url) {
+        static PhotoPayload from(PhotoCheckCommand.PhotoResource resource) {
+            return resource == null ? null : new PhotoPayload(resource.mimeType(), resource.sizeBytes(), resource.sha256(), resource.url());
+        }
+    }
+    record CheckResponse(PhotoCheckStatus status, String reason, String fix) {}
+    record ErrorEnvelope(ErrorPayload error) {}
+    record ErrorPayload(String code, String message, String field) {}
 }

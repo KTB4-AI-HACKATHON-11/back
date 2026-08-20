@@ -1,5 +1,4 @@
 package com.ktb.hackathon.team11.task;
-
 import com.ktb.hackathon.team11.ai.*;
 import com.ktb.hackathon.team11.global.exception.*;
 import com.ktb.hackathon.team11.group.*;
@@ -138,7 +137,7 @@ public class TaskTemplateService {
             + "."
             + p.extension();
     storage.store(key, p.bytes(), p.mimeType());
-    item.setReferenceImageKey(key);
+    item.setReferenceImage(key, p.mimeType(), p.sizeBytes(), p.sha256());
     return key;
   }
 
