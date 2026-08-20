@@ -13,6 +13,7 @@ public enum ErrorCode {
   INVALID_COMPLETION_TYPE(HttpStatus.BAD_REQUEST, "업무 완료 방식이 올바르지 않습니다."),
   INVALID_SCHEDULE(HttpStatus.BAD_REQUEST, "업무 일정이 올바르지 않습니다."),
   INVALID_DUE_AT(HttpStatus.BAD_REQUEST, "마감 일시가 올바르지 않습니다."),
+  INVALID_STORE_INFO_INPUT(HttpStatus.BAD_REQUEST, "매장 정보 입력값이 올바르지 않습니다."),
   INVALID_PHOTO(HttpStatus.BAD_REQUEST, "사진 형식 또는 크기가 올바르지 않습니다."),
   PHOTO_TOO_LARGE(HttpStatus.BAD_REQUEST, "사진 용량은 10MB를 초과할 수 없습니다."),
   REFERENCE_PHOTO_REQUIRED(HttpStatus.BAD_REQUEST, "PHOTO 업무에는 기준 사진이 필요합니다."),
@@ -20,6 +21,7 @@ public enum ErrorCode {
   INVALID_REFERENCE_PHOTO_INDEX(HttpStatus.BAD_REQUEST, "기준 사진 인덱스가 올바르지 않습니다."),
   MEMBER_NOT_FOUND(HttpStatus.NOT_FOUND, "회원을 찾을 수 없습니다."),
   GROUP_NOT_FOUND(HttpStatus.NOT_FOUND, "그룹을 찾을 수 없습니다."),
+  STORE_INFO_NOT_FOUND(HttpStatus.NOT_FOUND, "매장 정보를 찾을 수 없습니다."),
   TEMPLATE_NOT_FOUND(HttpStatus.NOT_FOUND, "업무 템플릿을 찾을 수 없습니다."),
   TASK_NOT_FOUND(HttpStatus.NOT_FOUND, "태스크를 찾을 수 없습니다."),
   CHECKLIST_NOT_FOUND(HttpStatus.NOT_FOUND, "태스크에 속한 체크리스트를 찾을 수 없습니다."),
@@ -40,6 +42,7 @@ public enum ErrorCode {
   AI_UNAUTHORIZED(HttpStatus.BAD_GATEWAY, "AI 서비스 설정을 확인해 주세요."),
   PHOTO_UNAVAILABLE(HttpStatus.UNPROCESSABLE_ENTITY, "AI가 사진을 불러올 수 없습니다."),
   AI_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "AI 서비스를 일시적으로 사용할 수 없습니다."),
+  STORE_INFO_LIMIT_EXCEEDED(HttpStatus.UNPROCESSABLE_ENTITY, "매장 정보는 최대 60,000자까지 등록할 수 있습니다."),
   STORAGE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "파일 저장소를 일시적으로 사용할 수 없습니다."),
   RESOURCE_NOT_FOUND(HttpStatus.NOT_FOUND, "요청한 리소스를 찾을 수 없습니다."),
   INTERNAL_SERVER_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 내부 오류가 발생했습니다.");
