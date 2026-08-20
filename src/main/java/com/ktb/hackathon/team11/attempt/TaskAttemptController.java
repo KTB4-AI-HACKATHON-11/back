@@ -34,6 +34,9 @@ public class TaskAttemptController {
             responseCode = "409",
             description = "중복 사진, 수행 시간 외 요청 또는 완료된 업무"),
         @io.swagger.v3.oas.annotations.responses.ApiResponse(
+            responseCode = "502",
+            description = "AI 요청 형식 또는 서비스 인증 설정 오류"),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(
             responseCode = "503",
             description = "스토리지 사용 불가")
       })
@@ -91,14 +94,14 @@ public class TaskAttemptController {
               example = "POS 화면이 선명하게 보이도록 다시 촬영해 주세요.",
               nullable = true)
           String fix) {
-    static Response from(TaskAttempt attempt) {
+    static Response from(TaskAttemptService.Result result) {
       return new Response(
-          attempt.getId(),
-          attempt.getAttemptNumber(),
-          attempt.getStatus(),
-          attempt.getAssignment().getStatus(),
-          attempt.getReason(),
-          attempt.getFixMessage());
+          result.attemptId(),
+          result.attemptNumber(),
+          result.status(),
+          result.assignmentStatus(),
+          result.reason(),
+          result.fix());
     }
   }
 }

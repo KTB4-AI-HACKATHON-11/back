@@ -15,6 +15,7 @@ import java.io.IOException;
 import java.net.http.HttpClient;
 import java.time.Duration;
 import java.util.List;
+import java.util.function.Consumer;
 
 @Component
 @ConditionalOnProperty(name = "ai.stub-enabled", havingValue = "false", matchIfMissing = true)
@@ -65,7 +66,12 @@ public class HttpAiTaskClient implements AiTaskClient {
                 PhotoPayload.from(command.photo()),
                 PhotoPayload.from(command.referencePhoto())
         );
-        CheckResponse response = exchangeWithRetry("/v1/attempts/check", request, CheckResponse.class);
+        CheckResponse response = exchangeWithRetry(
+                "/v1/attempts/check", request, CheckResponse.class, this::validateCheckResponse);
+        return new PhotoCheckResult(response.status(), response.reason(), response.status() == PhotoCheckStatus.PASS ? null : response.fix());
+    }
+
+    private void validateCheckResponse(CheckResponse response) {
         if (response == null || response.status() == null || response.reason() == null || response.reason().isBlank() || response.reason().length() > 500) {
             log.warn("AI photo check returned an invalid response shape");
             throw new BusinessException(ErrorCode.AI_UNAVAILABLE);
@@ -74,7 +80,6 @@ public class HttpAiTaskClient implements AiTaskClient {
             log.warn("AI photo check RETAKE response did not include a valid fix message");
             throw new BusinessException(ErrorCode.AI_UNAVAILABLE);
         }
-        return new PhotoCheckResult(response.status(), response.reason(), response.status() == PhotoCheckStatus.PASS ? null : response.fix());
     }
 
     private void validateGeneratedTask(GeneratedTask task) {
@@ -87,12 +92,19 @@ public class HttpAiTaskClient implements AiTaskClient {
     }
 
     private <T> T exchangeWithRetry(String path, Object body, Class<T> responseType) {
+        return exchangeWithRetry(path, body, responseType, ignored -> {});
+    }
+
+    private <T> T exchangeWithRetry(
+            String path, Object body, Class<T> responseType, Consumer<T> validator) {
         BusinessException last = null;
         for (int attempt = 0; attempt < 2; attempt++) {
             try {
-                return client.post().uri(path).body(body).retrieve()
-                        .onStatus(HttpStatusCode::isError, (request, response) -> handleError(response))
+                T response = client.post().uri(path).body(body).retrieve()
+                        .onStatus(HttpStatusCode::isError, (request, errorResponse) -> handleError(errorResponse))
                         .body(responseType);
+                validator.accept(response);
+                return response;
             } catch (PhotoUnavailableException exception) {
                 log.warn("AI backend could not read photo field={}", exception.getField());
                 throw exception;
