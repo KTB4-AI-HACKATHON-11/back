@@ -25,11 +25,15 @@ public class KnowledgeController {
   @Operation(summary = "매장 정보 질문", description = "등록된 매장 정보만 근거로 AI 답변을 생성합니다.")
   ApiResponse<KnowledgeService.AnswerResponse> answer(
       @Valid @RequestBody AnswerRequest request) {
-    return ApiResponse.of("KNOWLEDGE_ANSWERED", service.answer(request.question()));
+    return ApiResponse.of(
+        "KNOWLEDGE_ANSWERED", service.answer(request.conversationId(), request.question()));
   }
 
   @Schema(description = "매장 정보 질문 요청")
   public record AnswerRequest(
+      @Schema(description = "이전 응답에서 받은 대화 ID", example = "3fa85f64-5717-4562-b3fc-2c963f66afa6")
+          @Size(max = 100, message = "대화 ID는 100자를 초과할 수 없습니다.")
+          String conversationId,
       @Schema(example = "일반 택배는 몇 시까지 받고 냉장 택배도 접수할 수 있어?")
           @NotBlank(message = "질문은 필수입니다.")
           @Size(max = 200, message = "질문은 200자를 초과할 수 없습니다.")
