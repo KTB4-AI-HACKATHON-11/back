@@ -74,7 +74,7 @@ public class HttpAiTaskClient implements AiTaskClient {
     @Override
     public String answerKnowledge(String information, String question) {
         if (information == null || information.isBlank() || information.length() > 60_000
-                || question == null || question.isBlank() || question.length() > 200) {
+                || question == null || question.isBlank() || question.length() > 60_000) {
             throw new BusinessException(ErrorCode.AI_INVALID_REQUEST);
         }
         KnowledgeResponse response = exchangeWithRetry(

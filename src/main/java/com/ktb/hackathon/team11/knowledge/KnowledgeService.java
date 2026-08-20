@@ -20,7 +20,7 @@ public class KnowledgeService {
   private final ConcurrentMap<String, Conversation> conversations = new ConcurrentHashMap<>();
 
   private static final int MAX_TURNS = 10;
-  private static final int MAX_INFORMATION_LENGTH = 60_000;
+  private static final int MAX_QUESTION_LENGTH = 60_000;
 
   public KnowledgeService(
       AiTaskClient ai, @Value("classpath:store-knowledge.txt") Resource informationResource) {
@@ -34,24 +34,27 @@ public class KnowledgeService {
         : conversationId;
     Conversation conversation = conversations.computeIfAbsent(id, ignored -> new Conversation());
     synchronized (conversation) {
-      String context = informationWithHistory(conversation);
-      String answer = ai.answerKnowledge(context, question);
+      String prompt = questionWithHistory(conversation, question);
+      String answer = ai.answerKnowledge(information, prompt);
       conversation.add(question, answer);
       return new AnswerResponse(answer, id);
     }
   }
 
-  private String informationWithHistory(Conversation conversation) {
-    if (conversation.turns.isEmpty()) return information;
-    StringBuilder history = new StringBuilder("\n\n[이전 대화]\n");
+  private String questionWithHistory(Conversation conversation, String question) {
+    if (conversation.turns.isEmpty()) return question;
+    StringBuilder history = new StringBuilder("[이전 대화]\n");
     for (Turn turn : conversation.turns) {
       history.append("질문: ").append(turn.question()).append('\n');
       history.append("AI 답변: ").append(turn.answer()).append('\n');
     }
-    int available = MAX_INFORMATION_LENGTH - information.length();
-    if (available <= 0) return information;
-    if (history.length() > available) history.setLength(available);
-    return information + history;
+    int available = MAX_QUESTION_LENGTH - question.length() - "\n[현재 질문]\n".length();
+    if (available > 0 && history.length() > available) {
+      history = new StringBuilder(history.substring(history.length() - available));
+    }
+    if (available <= 0) history.setLength(0);
+    history.append("\n[현재 질문]\n").append(question);
+    return history.toString();
   }
 
   private String readInformation(Resource resource) {
