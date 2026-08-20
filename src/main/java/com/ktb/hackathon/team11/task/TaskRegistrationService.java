@@ -129,8 +129,10 @@ public class TaskRegistrationService {
 
   private Member requireGroupWorker(long groupId, long workerId) {
     Member worker = members.requireMember(workerId);
-    if (worker.getRole() != MemberRole.WORKER
-        || memberships.findByGroupIdAndMemberId(groupId, workerId).isEmpty())
+    if (memberships
+            .findByGroupIdAndMemberId(groupId, workerId)
+            .map(membership -> membership.getGroupRole() != MemberRole.WORKER)
+            .orElse(true))
       throw new BusinessException(ErrorCode.WORKER_NOT_IN_GROUP);
     return worker;
   }

@@ -34,10 +34,11 @@ public class TaskAttemptService {
 
     @Transactional
     public Result submit(long assignmentId, long workerId, MultipartFile file) {
-        Member worker = members.requireRole(workerId, MemberRole.WORKER);
+        Member worker = members.requireMember(workerId);
         TaskAssignment assignment = assignmentService.requireForUpdate(assignmentId);
         long groupId = assignment.getSchedule().getTaskTemplate().getGroup().getId();
-        groups.requireMember(groupId, workerId);
+        if (groups.requireMember(groupId, workerId).getGroupRole() != MemberRole.WORKER)
+            throw new BusinessException(ErrorCode.WORKER_NOT_IN_GROUP);
         if (assignment.getAssignee() != null && !assignment.getAssignee().getId().equals(workerId)) throw new BusinessException(ErrorCode.GROUP_ACCESS_DENIED);
         if (assignment.getTaskItemTemplate().getCompletionType() != CompletionType.PHOTO) throw new BusinessException(ErrorCode.INVALID_COMPLETION_TYPE);
         LocalDateTime now = LocalDateTime.now(clock);

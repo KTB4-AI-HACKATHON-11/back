@@ -50,9 +50,8 @@ public class AssignmentService {
 
   @Transactional
   public TaskAssignment check(long id, long workerId) {
-    members.requireRole(workerId, MemberRole.WORKER);
     TaskAssignment a = require(id);
-    groups.requireMember(a.getSchedule().getTaskTemplate().getGroup().getId(), workerId);
+    requireGroupWorker(a.getSchedule().getTaskTemplate().getGroup().getId(), workerId);
     if (a.getAssignee() != null && !a.getAssignee().getId().equals(workerId))
       throw new BusinessException(ErrorCode.GROUP_ACCESS_DENIED);
     a.completeCheck(LocalDateTime.now(clock));
@@ -62,17 +61,21 @@ public class AssignmentService {
   @Transactional
   public TaskAssignment updatePerformed(
       long taskId, long checklistId, long workerId, boolean performed) {
-    members.requireRole(workerId, MemberRole.WORKER);
     TaskAssignment assignment =
         repository
             .findByIdAndScheduleTaskTemplateId(checklistId, taskId)
             .orElseThrow(() -> new BusinessException(ErrorCode.TASK_NOT_FOUND));
     long groupId = assignment.getSchedule().getTaskTemplate().getGroup().getId();
-    groups.requireMember(groupId, workerId);
+    requireGroupWorker(groupId, workerId);
     if (assignment.getAssignee() != null && !assignment.getAssignee().getId().equals(workerId))
       throw new BusinessException(ErrorCode.GROUP_ACCESS_DENIED);
     if (performed) assignment.completeCheck(LocalDateTime.now(clock));
     else assignment.uncompleteCheck(LocalDateTime.now(clock));
     return assignment;
+  }
+
+  private void requireGroupWorker(long groupId, long workerId) {
+    if (groups.requireMember(groupId, workerId).getGroupRole() != MemberRole.WORKER)
+      throw new BusinessException(ErrorCode.WORKER_NOT_IN_GROUP);
   }
 }
