@@ -41,6 +41,29 @@ public class TaskRegistrationService {
       OffsetDateTime dueAt,
       List<ChecklistCommand> commands,
       List<MultipartFile> referencePhotos) {
+    return create(
+        groupId,
+        managerId,
+        title,
+        message,
+        workerId,
+        dueAt,
+        commands,
+        referencePhotos,
+        false);
+  }
+
+  @Transactional
+  public TaskCreatedResponse create(
+      long groupId,
+      long managerId,
+      String title,
+      String message,
+      long workerId,
+      OffsetDateTime dueAt,
+      List<ChecklistCommand> commands,
+      List<MultipartFile> referencePhotos,
+      boolean notifyOnCompletion) {
     GroupMember manager = groups.requireManager(groupId, managerId);
     Member worker = requireGroupWorker(groupId, workerId);
     LocalDateTime availableFrom = LocalDateTime.now(clock);
@@ -51,7 +74,12 @@ public class TaskRegistrationService {
         validateAndInspect(commands, referencePhotos);
     TaskTemplate template =
         templates.save(
-            new TaskTemplate(manager.getGroup(), manager.getMember(), title.strip(), message.strip()));
+            new TaskTemplate(
+                manager.getGroup(),
+                manager.getMember(),
+                title.strip(),
+                message.strip(),
+                notifyOnCompletion));
 
     List<TaskItemTemplate> savedItems = new ArrayList<>(commands.size());
     List<String> storedKeys = new ArrayList<>();
@@ -124,6 +152,7 @@ public class TaskRegistrationService {
         new WorkerResponse(worker.getId(), worker.getNickname()),
         dueAt,
         AssignmentStatus.PENDING,
+        notifyOnCompletion,
         List.copyOf(checklistResponses));
   }
 
@@ -215,5 +244,6 @@ public class TaskRegistrationService {
       WorkerResponse worker,
       OffsetDateTime dueAt,
       AssignmentStatus status,
+      boolean notifyOnCompletion,
       List<ChecklistCreatedResponse> checklists) {}
 }

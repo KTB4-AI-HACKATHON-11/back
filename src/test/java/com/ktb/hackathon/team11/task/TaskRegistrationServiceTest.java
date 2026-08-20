@@ -35,6 +35,7 @@ class TaskRegistrationServiceTest {
   @Mock private PhotoInspector photoInspector;
   @Mock private FileStorage storage;
   @Mock private GroupMember managerMembership;
+  @Mock private GroupMember workerMembership;
   @Mock private WorkGroup group;
   @Mock private Member manager;
   @Mock private Member worker;
@@ -64,8 +65,9 @@ class TaskRegistrationServiceTest {
     when(worker.getRole()).thenReturn(MemberRole.WORKER);
     when(worker.getId()).thenReturn(2L);
     when(worker.getNickname()).thenReturn("서연");
+    when(workerMembership.getGroupRole()).thenReturn(MemberRole.WORKER);
     when(memberships.findByGroupIdAndMemberId(1L, 2L))
-        .thenReturn(Optional.of(mock(GroupMember.class)));
+        .thenReturn(Optional.of(workerMembership));
     when(templates.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
     when(items.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
     when(schedules.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
@@ -128,6 +130,26 @@ class TaskRegistrationServiceTest {
     assertThat(response.checklists()).hasSize(1);
     assertThat(response.checklists().getFirst().referencePhotoAttached()).isFalse();
     verifyNoInteractions(storage);
+  }
+
+  @Test
+  void storesCompletionNotificationPreference() {
+    service.create(
+        1L,
+        1L,
+        "오픈 점검",
+        "조명을 확인해줘",
+        2L,
+        OffsetDateTime.parse("2026-08-21T09:30:00+09:00"),
+        List.of(
+            new TaskRegistrationService.ChecklistCommand(
+                1, "조명 확인", "확인해 주세요.", CompletionType.CHECK, null, null)),
+        List.of(),
+        true);
+
+    ArgumentCaptor<TaskTemplate> templateCaptor = ArgumentCaptor.forClass(TaskTemplate.class);
+    verify(templates).save(templateCaptor.capture());
+    assertThat(templateCaptor.getValue().isNotifyOnCompletion()).isTrue();
   }
 
   @Test

@@ -19,6 +19,8 @@ public enum ErrorCode {
   REFERENCE_PHOTO_REQUIRED(HttpStatus.BAD_REQUEST, "PHOTO 업무에는 기준 사진이 필요합니다."),
   VERIFICATION_RULE_REQUIRED(HttpStatus.BAD_REQUEST, "사진 검증 항목의 검증 기준을 입력해주세요."),
   INVALID_REFERENCE_PHOTO_INDEX(HttpStatus.BAD_REQUEST, "기준 사진 인덱스가 올바르지 않습니다."),
+  INVALID_PUSH_SUBSCRIPTION(HttpStatus.BAD_REQUEST, "브라우저 알림 구독 정보가 올바르지 않습니다."),
+  SESSION_REQUIRED(HttpStatus.UNAUTHORIZED, "로그인이 필요합니다."),
   MEMBER_NOT_FOUND(HttpStatus.NOT_FOUND, "회원을 찾을 수 없습니다."),
   GROUP_NOT_FOUND(HttpStatus.NOT_FOUND, "그룹을 찾을 수 없습니다."),
   STORE_INFO_NOT_FOUND(HttpStatus.NOT_FOUND, "매장 정보를 찾을 수 없습니다."),

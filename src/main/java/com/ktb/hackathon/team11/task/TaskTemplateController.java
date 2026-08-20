@@ -79,7 +79,8 @@ public class TaskTemplateController {
                             checklist.rule(),
                             checklist.referencePhotoIndex()))
                 .toList(),
-            referencePhotos == null ? List.of() : referencePhotos));
+            referencePhotos == null ? List.of() : referencePhotos,
+            Boolean.TRUE.equals(request.notifyOnCompletion())));
   }
 
   @Operation(
@@ -188,6 +189,7 @@ public class TaskTemplateController {
       @NotBlank @Size(max = 2000) String message,
       @NotNull Long workerId,
       @NotNull @Future OffsetDateTime dueAt,
+      Boolean notifyOnCompletion,
       @NotEmpty @Size(max = 20) List<@Valid ChecklistRequest> checklists) {}
 
   @Schema(description = "최종 등록할 체크리스트")

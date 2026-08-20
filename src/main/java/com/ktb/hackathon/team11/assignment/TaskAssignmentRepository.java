@@ -23,6 +23,8 @@ public interface TaskAssignmentRepository extends JpaRepository<TaskAssignment, 
 
   List<TaskAssignment> findAllByScheduleTaskTemplateId(Long templateId);
 
+  List<TaskAssignment> findAllByScheduleIdAndScheduledDate(Long scheduleId, LocalDate scheduledDate);
+
   Optional<TaskAssignment> findByIdAndScheduleTaskTemplateId(Long id, Long templateId);
 
   long countByScheduleTaskTemplateGroupId(Long groupId);

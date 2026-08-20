@@ -30,11 +30,19 @@ public class TaskTemplate extends BaseEntity {
   @Column(nullable = false)
   private boolean active = true;
 
+  @Column(nullable = false)
+  private boolean notifyOnCompletion;
+
   public TaskTemplate(WorkGroup g, Member c, String t, String s) {
+    this(g, c, t, s, false);
+  }
+
+  public TaskTemplate(WorkGroup g, Member c, String t, String s, boolean notifyOnCompletion) {
     group = g;
     creator = c;
     title = t;
     sourceMessage = s;
+    this.notifyOnCompletion = notifyOnCompletion;
   }
 
   public void update(String t, Boolean a) {
@@ -44,5 +52,9 @@ public class TaskTemplate extends BaseEntity {
 
   public void deactivate() {
     active = false;
+  }
+
+  public void updateCompletionNotification(boolean enabled) {
+    notifyOnCompletion = enabled;
   }
 }

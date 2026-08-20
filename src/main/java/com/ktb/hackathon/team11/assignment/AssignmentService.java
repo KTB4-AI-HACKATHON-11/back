@@ -3,6 +3,7 @@ package com.ktb.hackathon.team11.assignment;
 import com.ktb.hackathon.team11.global.exception.*;
 import com.ktb.hackathon.team11.group.GroupService;
 import com.ktb.hackathon.team11.member.*;
+import com.ktb.hackathon.team11.notification.CompletionNotificationService;
 import java.time.*;
 import java.util.*;
 import lombok.RequiredArgsConstructor;
@@ -16,6 +17,7 @@ public class AssignmentService {
   private final TaskAssignmentRepository repository;
   private final MemberService members;
   private final GroupService groups;
+  private final CompletionNotificationService completionNotifications;
   private final Clock clock;
 
   public TaskAssignment require(long id) {
@@ -55,6 +57,7 @@ public class AssignmentService {
     if (a.getAssignee() != null && !a.getAssignee().getId().equals(workerId))
       throw new BusinessException(ErrorCode.GROUP_ACCESS_DENIED);
     a.completeCheck(LocalDateTime.now(clock));
+    completionNotifications.afterStateChange(a);
     return a;
   }
 
@@ -69,8 +72,10 @@ public class AssignmentService {
     requireGroupWorker(groupId, workerId);
     if (assignment.getAssignee() != null && !assignment.getAssignee().getId().equals(workerId))
       throw new BusinessException(ErrorCode.GROUP_ACCESS_DENIED);
-    if (performed) assignment.completeCheck(LocalDateTime.now(clock));
-    else assignment.uncompleteCheck(LocalDateTime.now(clock));
+    if (performed) {
+      assignment.completeCheck(LocalDateTime.now(clock));
+      completionNotifications.afterStateChange(assignment);
+    } else assignment.uncompleteCheck(LocalDateTime.now(clock));
     return assignment;
   }
 

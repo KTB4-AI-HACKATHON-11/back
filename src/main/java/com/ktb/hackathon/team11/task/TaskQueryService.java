@@ -74,6 +74,7 @@ public class TaskQueryService {
         toOffsetDateTime(taskAssignments.get(0).getDueAt()),
         summary.status(),
         summary.progress(),
+        template.isNotifyOnCompletion(),
         toOffsetDateTime(template.getCreatedAt()),
         taskAssignments.stream().sorted(Comparator.comparing(a -> a.getTaskItemTemplate().getSequence()))
             .map(this::checklist)
@@ -179,6 +180,7 @@ public class TaskQueryService {
       OffsetDateTime dueAt,
       TaskStatus status,
       int progress,
+      boolean notifyOnCompletion,
       OffsetDateTime createdAt,
       List<Checklist> checklists) {}
 

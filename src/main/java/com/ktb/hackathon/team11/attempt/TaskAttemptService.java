@@ -5,6 +5,7 @@ import com.ktb.hackathon.team11.assignment.*;
 import com.ktb.hackathon.team11.global.exception.*;
 import com.ktb.hackathon.team11.group.GroupService;
 import com.ktb.hackathon.team11.member.*;
+import com.ktb.hackathon.team11.notification.CompletionNotificationService;
 import com.ktb.hackathon.team11.storage.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -29,6 +30,7 @@ public class TaskAttemptService {
     private final PhotoInspector inspector;
     private final FileStorage storage;
     private final AiTaskClient ai;
+    private final CompletionNotificationService completionNotifications;
     private final Clock clock;
     @Value("${storage.presigned-url-minutes:5}") private long urlMinutes;
 
@@ -80,6 +82,7 @@ public class TaskAttemptService {
             if (result.status() == PhotoCheckStatus.PASS) {
                 attempt.pass(result.reason());
                 assignment.pass(LocalDateTime.now(clock));
+                completionNotifications.afterStateChange(assignment);
             } else {
                 attempt.retake(result.reason(), result.fix());
                 assignment.retake();

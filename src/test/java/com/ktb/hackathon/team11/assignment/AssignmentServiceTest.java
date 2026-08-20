@@ -6,10 +6,12 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.ktb.hackathon.team11.group.GroupService;
+import com.ktb.hackathon.team11.group.GroupMember;
 import com.ktb.hackathon.team11.group.WorkGroup;
 import com.ktb.hackathon.team11.member.Member;
 import com.ktb.hackathon.team11.member.MemberRole;
 import com.ktb.hackathon.team11.member.MemberService;
+import com.ktb.hackathon.team11.notification.CompletionNotificationService;
 import com.ktb.hackathon.team11.schedule.TaskSchedule;
 import com.ktb.hackathon.team11.task.TaskTemplate;
 import java.time.Clock;
@@ -27,30 +29,33 @@ class AssignmentServiceTest {
   @Mock private TaskAssignmentRepository repository;
   @Mock private MemberService members;
   @Mock private GroupService groups;
+  @Mock private CompletionNotificationService completionNotifications;
   @Mock private TaskAssignment assignment;
   @Mock private TaskSchedule schedule;
   @Mock private TaskTemplate template;
   @Mock private WorkGroup group;
+  @Mock private GroupMember workerMembership;
   @Mock private Member worker;
   @InjectMocks private AssignmentService service;
 
   @Test
   void updatesCheckChecklistToPerformed() {
     Clock clock = Clock.fixed(Instant.parse("2026-08-20T00:00:00Z"), ZoneOffset.UTC);
-    service = new AssignmentService(repository, members, groups, clock);
+    service = new AssignmentService(repository, members, groups, completionNotifications, clock);
     when(repository.findByIdAndScheduleTaskTemplateId(940001L, 930001L))
         .thenReturn(Optional.of(assignment));
     when(assignment.getSchedule()).thenReturn(schedule);
     when(schedule.getTaskTemplate()).thenReturn(template);
     when(template.getGroup()).thenReturn(group);
     when(group.getId()).thenReturn(9L);
+    when(groups.requireMember(9L, 2L)).thenReturn(workerMembership);
+    when(workerMembership.getGroupRole()).thenReturn(MemberRole.WORKER);
     when(assignment.getAssignee()).thenReturn(worker);
     when(worker.getId()).thenReturn(2L);
 
     TaskAssignment result = service.updatePerformed(930001L, 940001L, 2L, true);
 
     assertThat(result).isSameAs(assignment);
-    verify(members).requireRole(2L, MemberRole.WORKER);
     verify(groups).requireMember(9L, 2L);
     verify(assignment).completeCheck(any());
   }

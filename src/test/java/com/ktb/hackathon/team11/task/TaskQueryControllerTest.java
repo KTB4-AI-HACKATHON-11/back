@@ -61,6 +61,7 @@ class TaskQueryControllerTest {
             OffsetDateTime.parse("2026-08-21T09:30:00+09:00"),
             TaskStatus.IN_PROGRESS,
             67,
+            false,
             OffsetDateTime.parse("2026-08-20T10:00:00+09:00"),
             List.of(
                 new TaskQueryService.Checklist(

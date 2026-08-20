@@ -41,6 +41,17 @@ storage:
 task:
   assignment-generation-cron: ${TASK_ASSIGNMENT_GENERATION_CRON:0 0 0 * * *}
 
+auth:
+  session-days: ${AUTH_SESSION_DAYS:7}
+  cookie-secure: ${AUTH_COOKIE_SECURE:false}
+
+web-push:
+  enabled: ${WEB_PUSH_ENABLED:false}
+  public-key: ${WEB_PUSH_VAPID_PUBLIC_KEY:}
+  private-key: ${WEB_PUSH_VAPID_PRIVATE_KEY:}
+  subject: ${WEB_PUSH_VAPID_SUBJECT:https://checkon.cloud}
+  dispatch-delay-ms: ${WEB_PUSH_DISPATCH_DELAY_MS:1000}
+
 springdoc:
   api-docs:
     enabled: ${SWAGGER_ENABLED:true}

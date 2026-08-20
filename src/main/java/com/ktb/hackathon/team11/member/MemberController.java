@@ -1,5 +1,6 @@
 package com.ktb.hackathon.team11.member;
 
+import com.ktb.hackathon.team11.auth.SessionService;
 import com.ktb.hackathon.team11.global.response.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -7,7 +8,9 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -16,6 +19,7 @@ import org.springframework.web.bind.annotation.*;
 @Tag(name = "1. 회원", description = "데모 회원가입과 닉네임 로그인 API")
 public class MemberController {
   private final MemberService service;
+  private final SessionService sessions;
 
   @Operation(
       summary = "회원가입",
@@ -32,15 +36,14 @@ public class MemberController {
             description = "이미 사용 중인 닉네임")
       })
   @PostMapping
-  @ResponseStatus(HttpStatus.CREATED)
-  ApiResponse<MemberResponse> create(@Valid @RequestBody CreateMemberRequest request) {
-    return ApiResponse.of(
-        "MEMBER_CREATED", MemberResponse.from(service.create(request.nickname())));
+  ResponseEntity<ApiResponse<MemberResponse>> create(@Valid @RequestBody CreateMemberRequest request) {
+    return authenticated(
+        service.create(request.nickname()), "MEMBER_CREATED", HttpStatus.CREATED);
   }
 
   @Operation(
       summary = "데모 로그인",
-      description = "인증 토큰 없이 닉네임으로 회원을 조회합니다. 응답의 memberId와 role을 이후 API에 사용합니다.",
+      description = "닉네임으로 회원을 조회하고 이후 요청에 사용할 HttpOnly 세션 쿠키를 발급합니다.",
       responses = {
         @io.swagger.v3.oas.annotations.responses.ApiResponse(
             responseCode = "200",
@@ -50,8 +53,31 @@ public class MemberController {
             description = "존재하지 않는 닉네임")
       })
   @PostMapping("/login")
-  ApiResponse<MemberResponse> login(@Valid @RequestBody LoginRequest request) {
-    return ApiResponse.of("LOGIN_SUCCESS", MemberResponse.from(service.login(request.nickname())));
+  ResponseEntity<ApiResponse<MemberResponse>> login(@Valid @RequestBody LoginRequest request) {
+    return authenticated(service.login(request.nickname()), "LOGIN_SUCCESS", HttpStatus.OK);
+  }
+
+  @GetMapping("/me")
+  ApiResponse<MemberResponse> me(
+      @CookieValue(value = SessionService.COOKIE_NAME, required = false) String token) {
+    return ApiResponse.of("SESSION_FOUND", MemberResponse.from(sessions.require(token)));
+  }
+
+  @PostMapping("/logout")
+  ResponseEntity<ApiResponse<Void>> logout(
+      @CookieValue(value = SessionService.COOKIE_NAME, required = false) String token) {
+    sessions.revoke(token);
+    return ResponseEntity.ok()
+        .header(HttpHeaders.SET_COOKIE, sessions.clearCookie().toString())
+        .body(ApiResponse.of("LOGOUT_SUCCESS", null));
+  }
+
+  private ResponseEntity<ApiResponse<MemberResponse>> authenticated(
+      Member member, String code, HttpStatus status) {
+    SessionService.IssuedSession issued = sessions.issue(member);
+    return ResponseEntity.status(status)
+        .header(HttpHeaders.SET_COOKIE, sessions.cookie(issued.token()).toString())
+        .body(ApiResponse.of(code, MemberResponse.from(member)));
   }
 
   @Schema(description = "회원가입 요청")

@@ -9,6 +9,7 @@ import com.ktb.hackathon.team11.assignment.*;
 import com.ktb.hackathon.team11.global.exception.*;
 import com.ktb.hackathon.team11.group.*;
 import com.ktb.hackathon.team11.member.*;
+import com.ktb.hackathon.team11.notification.CompletionNotificationService;
 import com.ktb.hackathon.team11.schedule.TaskSchedule;
 import com.ktb.hackathon.team11.storage.*;
 import com.ktb.hackathon.team11.task.*;
@@ -35,11 +36,13 @@ class TaskAttemptServiceTest {
   @Mock private PhotoInspector inspector;
   @Mock private FileStorage storage;
   @Mock private AiTaskClient ai;
+  @Mock private CompletionNotificationService completionNotifications;
   @Mock private TaskAssignment assignment;
   @Mock private TaskSchedule schedule;
   @Mock private TaskTemplate template;
   @Mock private TaskItemTemplate item;
   @Mock private WorkGroup group;
+  @Mock private GroupMember workerMembership;
   @Mock private Member worker;
 
   private TaskAttemptService service;
@@ -51,7 +54,16 @@ class TaskAttemptServiceTest {
   void setUp() {
     service =
         new TaskAttemptService(
-            attempts, photos, assignmentService, members, groups, inspector, storage, ai, clock);
+            attempts,
+            photos,
+            assignmentService,
+            members,
+            groups,
+            inspector,
+            storage,
+            ai,
+            completionNotifications,
+            clock);
     ReflectionTestUtils.setField(service, "urlMinutes", 5L);
     file = new MockMultipartFile("photo", "proof.png", "image/png", new byte[] {1, 2});
 
@@ -62,6 +74,8 @@ class TaskAttemptServiceTest {
     when(schedule.getTaskTemplate()).thenReturn(template);
     when(template.getGroup()).thenReturn(group);
     when(group.getId()).thenReturn(1L);
+    when(groups.requireMember(1L, 2L)).thenReturn(workerMembership);
+    when(workerMembership.getGroupRole()).thenReturn(MemberRole.WORKER);
     when(assignment.getAssignee()).thenReturn(worker);
     when(assignment.getTaskItemTemplate()).thenReturn(item);
     when(item.getCompletionType()).thenReturn(CompletionType.PHOTO);
