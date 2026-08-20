@@ -60,16 +60,25 @@ public class NotificationDispatcher {
   }
 
   private String payload(NotificationOutbox outbox) {
+    String groupName = abbreviate(outbox.getTaskTemplate().getGroup().getName(), 32);
+    String taskTitle = abbreviate(outbox.getTaskTemplate().getTitle(), 48);
     try {
       return objectMapper.writeValueAsString(
           new Payload(
-              "태스크 완료",
-              "담당자가 태스크의 모든 항목을 완료했습니다.",
+              groupName + " · 업무 완료",
+              "‘" + taskTitle + "’ 업무의 모든 항목이 완료됐습니다.",
               "/tasks/" + outbox.getTaskTemplate().getId(),
               "task-completed-" + outbox.getScheduleId() + "-" + outbox.getScheduledDate()));
     } catch (JacksonException exception) {
       throw new IllegalStateException("알림 payload 직렬화에 실패했습니다.", exception);
     }
+  }
+
+  private String abbreviate(String value, int maxCodePoints) {
+    int length = value.codePointCount(0, value.length());
+    if (length <= maxCodePoints) return value;
+    int endIndex = value.offsetByCodePoints(0, maxCodePoints - 1);
+    return value.substring(0, endIndex) + "…";
   }
 
   private String diagnostic(WebPushSender.DeliveryResult result) {
