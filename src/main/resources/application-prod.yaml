@@ -2,7 +2,7 @@ server:
   forward-headers-strategy: framework
 
 cors:
-  allowed-origin-patterns: https://checkon.cloud
+  allowed-origin-patterns: https://checkon.cloud,http://localhost:5173,http://127.0.0.1:5173
 
 openapi:
   server-url: https://api.checkon.cloud

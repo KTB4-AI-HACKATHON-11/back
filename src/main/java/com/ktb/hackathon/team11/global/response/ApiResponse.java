@@ -19,6 +19,10 @@ public class ApiResponse<T> {
     return new ApiResponse<>(code, "요청이 성공적으로 처리되었습니다.", data);
   }
 
+  public static <T> ApiResponse<T> of(String code, String message, T data) {
+    return new ApiResponse<>(code, message, data);
+  }
+
   public static <T> ApiResponse<T> onFailure(String errorCode, String errorMessage) {
     return new ApiResponse<>(errorCode, errorMessage, null);
   }

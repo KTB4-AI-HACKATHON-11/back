@@ -5,6 +5,7 @@ import com.ktb.hackathon.team11.member.*;
 import java.security.SecureRandom;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -48,6 +49,12 @@ public class GroupService {
     return groups.findById(id).orElseThrow(() -> new BusinessException(ErrorCode.GROUP_NOT_FOUND));
   }
 
+  public GroupDetail detail(long groupId, long memberId) {
+    WorkGroup group = requireGroup(groupId);
+    GroupMember membership = requireMember(groupId, memberId);
+    return new GroupDetail(group, memberships.countByGroupId(groupId), membership.getGroupRole());
+  }
+
   public GroupMember requireMember(long groupId, long memberId) {
     return memberships
         .findByGroupIdAndMemberId(groupId, memberId)
@@ -66,8 +73,22 @@ public class GroupService {
     return memberships.findAllByMemberId(memberId);
   }
 
+  public List<GroupMember> groupsOf(long memberId, int offset, int limit) {
+    members.requireMember(memberId);
+    int page = offset / limit;
+    int remainder = offset % limit;
+    int pageSize = limit + remainder;
+
+    return memberships.findAllByMemberIdOrderByIdDesc(memberId, PageRequest.of(page, pageSize)).stream()
+        .skip(remainder)
+        .limit(limit)
+        .toList();
+  }
+
   public List<GroupMember> membersOf(long groupId, long requesterId) {
     requireManager(groupId, requesterId);
     return memberships.findAllByGroupId(groupId);
   }
+
+  public record GroupDetail(WorkGroup group, long memberCount, MemberRole role) {}
 }

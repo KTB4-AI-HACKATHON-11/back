@@ -60,13 +60,40 @@ public class GroupController {
         "GROUP_JOINED", GroupResponse.from(service.join(request.memberId(), request.groupId())));
   }
 
-  @Operation(summary = "내 그룹 목록 조회", description = "회원이 가입한 모든 편의점 그룹을 조회합니다.")
+  @Operation(
+      summary = "그룹 상세 조회",
+      description = "그룹 구성원이 그룹의 기본 정보와 본인의 그룹 내 역할을 조회합니다.",
+      responses = {
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(
+            responseCode = "200", description = "그룹 상세 조회 성공"),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(
+            responseCode = "403", description = "그룹 멤버가 아님"),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(
+            responseCode = "404", description = "존재하지 않는 그룹")
+      })
+  @GetMapping("/groups/{groupId}")
+  ApiResponse<GroupDetailResponse> detail(
+      @Parameter(description = "그룹 ID", example = "1") @PathVariable long groupId,
+      @Parameter(description = "조회 회원 ID", example = "2") @RequestParam long memberId) {
+    return ApiResponse.of(
+        "SUCCESS",
+        "그룹 상세 조회 성공",
+        GroupDetailResponse.from(service.detail(groupId, memberId)));
+  }
+
+  @Operation(summary = "내 그룹 목록 조회", description = "회원이 가입한 편의점 그룹을 offset과 limit 기준으로 잘라 조회합니다.")
   @GetMapping("/members/{memberId}/groups")
   ApiResponse<List<GroupResponse>> mine(
-      @Parameter(description = "조회할 회원 ID", example = "2") @PathVariable long memberId) {
+      @Parameter(description = "조회할 회원 ID", example = "2") @PathVariable long memberId,
+      @Parameter(description = "건너뛸 그룹 수", example = "0") @RequestParam(defaultValue = "0")
+          @PositiveOrZero
+          int offset,
+      @Parameter(description = "조회할 그룹 수", example = "20") @RequestParam(defaultValue = "20")
+          @Positive
+          int limit) {
     return ApiResponse.of(
         "GROUPS_FOUND",
-        service.groupsOf(memberId).stream()
+        service.groupsOf(memberId, offset, limit).stream()
             .map(group -> GroupResponse.from(group.getGroup()))
             .toList());
   }
@@ -119,6 +146,25 @@ public class GroupController {
       @Schema(description = "그룹 설명", example = "야간 근무 및 오픈 준비 업무") String description) {
     static GroupResponse from(WorkGroup group) {
       return new GroupResponse(group.getId(), group.getName(), group.getDescription());
+    }
+  }
+
+  @Schema(description = "그룹 상세 정보")
+  public record GroupDetailResponse(
+      @Schema(description = "그룹 ID", example = "482731") Long groupId,
+      @Schema(description = "그룹명", example = "성수 플래그십 스토어") String name,
+      @Schema(description = "그룹 설명", example = "오픈 준비부터 마감 점검까지 현장 운영 업무를 관리합니다.")
+          String description,
+      @Schema(description = "그룹 전체 인원 수", example = "8") long memberCount,
+      @Schema(description = "조회 회원의 그룹 내 역할", example = "MANAGER") MemberRole role) {
+    static GroupDetailResponse from(GroupService.GroupDetail detail) {
+      WorkGroup group = detail.group();
+      return new GroupDetailResponse(
+          group.getId(),
+          group.getName(),
+          group.getDescription(),
+          detail.memberCount(),
+          detail.role());
     }
   }
 
