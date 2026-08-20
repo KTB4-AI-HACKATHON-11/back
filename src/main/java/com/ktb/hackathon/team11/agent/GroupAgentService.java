@@ -11,7 +11,6 @@ import com.ktb.hackathon.team11.task.AgentTaskMutationService;
 import com.ktb.hackathon.team11.task.TaskRegistrationService;
 import java.time.Clock;
 import java.time.Duration;
-import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeParseException;
@@ -366,6 +365,7 @@ public class GroupAgentService {
           Objects.equals(recovery.title(), successful.title())
               && Objects.equals(recovery.workerId(), successful.workerId());
       case "UPDATE_TASK" -> Objects.equals(recovery.taskId(), successful.taskId());
+      case "DELETE_TASK" -> Objects.equals(recovery.taskId(), successful.taskId());
       case "COMPLETE_CHECKLIST" ->
           Objects.equals(recovery.taskId(), successful.taskId())
               && Objects.equals(recovery.runId(), successful.runId())
@@ -434,6 +434,7 @@ public class GroupAgentService {
       return switch (tool) {
         case "CREATE_TASK" -> createTask(groupId, managerId, call, evidence);
         case "UPDATE_TASK" -> updateTask(groupId, managerId, call, evidence);
+        case "DELETE_TASK" -> deleteTask(groupId, managerId, call, evidence);
         case "COMPLETE_CHECKLIST" -> completeChecklist(groupId, managerId, call, evidence);
         case "REPLACE_STORE_INFO" -> replaceStoreInfo(groupId, managerId, call, evidence);
         case "SEND_NOTIFICATION" -> sendNotification(groupId, managerId, call, evidence);
@@ -560,6 +561,20 @@ public class GroupAgentService {
             call.active());
     String summary = "‘" + updated.title() + "’ 태스크를 수정했습니다.";
     return successTool(call, summary, evidence, null);
+  }
+
+  private ExecutedTool deleteTask(
+      long groupId,
+      long managerId,
+      AgentAiClient.ToolCall call,
+      List<String> evidence) {
+    if (call.taskId() == null) throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
+    var deactivated = taskMutations.deactivate(groupId, managerId, call.taskId());
+    return successTool(
+        call,
+        "‘" + deactivated.title() + "’ 태스크를 삭제했습니다. 기존 수행 이력은 보존됩니다.",
+        evidence,
+        null);
   }
 
   private ExecutedTool completeChecklist(
@@ -762,6 +777,9 @@ public class GroupAgentService {
       case "UPDATE_TASK:RUNNING" -> "태스크 내용을 수정하고 있어요.";
       case "UPDATE_TASK:SUCCEEDED" -> "태스크 내용을 수정했어요.";
       case "UPDATE_TASK:FAILED" -> "태스크를 수정하지 못했어요.";
+      case "DELETE_TASK:RUNNING" -> "태스크를 삭제하고 있어요.";
+      case "DELETE_TASK:SUCCEEDED" -> "태스크를 삭제했어요.";
+      case "DELETE_TASK:FAILED" -> "태스크를 삭제하지 못했어요.";
       case "COMPLETE_CHECKLIST:RUNNING" -> "체크 항목을 완료 처리하고 있어요.";
       case "COMPLETE_CHECKLIST:SUCCEEDED" -> "체크 항목을 완료 처리했어요.";
       case "COMPLETE_CHECKLIST:FAILED" -> "체크 항목을 완료하지 못했어요.";
@@ -797,8 +815,11 @@ public class GroupAgentService {
 
   private AgentTurn recoverStale(AgentTurn turn) {
     if (turn.getStatus() != AgentTurnStatus.PROCESSING) return turn;
-    LocalDateTime cutoff = LocalDateTime.now(clock).minus(PROCESSING_STALE_AFTER);
-    if (!turn.getCreatedAt().isBefore(cutoff)) return turn;
+    // JPA 감사 시각은 JVM 기본 시간대의 LocalDateTime이므로 서울 LocalDateTime과 직접 비교하지 않는다.
+    // 마지막 진행 저장 시각을 같은 Instant 축으로 바꿔 실제로 멈춘 요청만 복구한다.
+    var lastProgressAt =
+        turn.getUpdatedAt().atZone(ZoneId.systemDefault()).toInstant();
+    if (!lastProgressAt.isBefore(clock.instant().minus(PROCESSING_STALE_AFTER))) return turn;
     List<AgentAiClient.ToolResult> partialResults = toolResults(turn.getToolResultsJson());
     String message =
         partialResults.isEmpty()
@@ -867,7 +888,10 @@ public class GroupAgentService {
         turn.getStatus(),
         activities(turn.getToolActivitiesJson()),
         cards(turn.getNotificationCardsJson()),
-        turn.getCreatedAt().atZone(SERVICE_ZONE).toOffsetDateTime());
+        turn.getCreatedAt()
+            .atZone(ZoneId.systemDefault())
+            .withZoneSameInstant(SERVICE_ZONE)
+            .toOffsetDateTime());
   }
 
   private record ExecutedTool(AgentAiClient.ToolResult result, NotificationCard notificationCard) {}

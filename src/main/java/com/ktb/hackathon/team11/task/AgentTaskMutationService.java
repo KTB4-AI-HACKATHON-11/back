@@ -31,6 +31,17 @@ public class AgentTaskMutationService {
   private final Clock clock;
 
   @Transactional
+  public DeactivatedTask deactivate(long groupId, long managerId, long taskId) {
+    groups.requireManager(groupId, managerId);
+    TaskTemplate template =
+        templates
+            .findByIdAndGroupId(taskId, groupId)
+            .orElseThrow(() -> new BusinessException(ErrorCode.TASK_NOT_FOUND));
+    template.deactivate();
+    return new DeactivatedTask(template.getId(), template.getTitle());
+  }
+
+  @Transactional
   public UpdatedTask update(
       long groupId,
       long managerId,
@@ -101,4 +112,6 @@ public class AgentTaskMutationService {
       Long workerId,
       String workerNickname,
       OffsetDateTime dueAt) {}
+
+  public record DeactivatedTask(long taskId, String title) {}
 }
