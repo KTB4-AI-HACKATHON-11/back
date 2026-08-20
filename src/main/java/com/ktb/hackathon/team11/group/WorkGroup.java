@@ -17,15 +17,24 @@ public class WorkGroup extends BaseEntity {
   @Column(nullable = false, length = 80)
   private String name;
 
+  @Column(length = 200)
+  private String description;
+
+  // 기존 로컬/배포 DB의 NOT NULL 컬럼 호환을 위해 남겨 둔다. API와 그룹 가입에는 노출하거나 사용하지 않는다.
   @Column(nullable = false, unique = true, length = 6)
   private String inviteCode;
 
   @ManyToOne(fetch = FetchType.LAZY, optional = false)
   private Member owner;
 
-  public WorkGroup(String name, String inviteCode, Member owner) {
+  public WorkGroup(String name, String description, String legacyCode, Member owner) {
     this.name = name.strip();
-    this.inviteCode = inviteCode;
+    this.description = normalizeDescription(description);
+    this.inviteCode = legacyCode;
     this.owner = owner;
+  }
+
+  private static String normalizeDescription(String description) {
+    return description == null || description.isBlank() ? null : description.strip();
   }
 }

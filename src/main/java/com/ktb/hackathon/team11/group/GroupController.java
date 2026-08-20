@@ -35,19 +35,21 @@ public class GroupController {
   @ResponseStatus(HttpStatus.CREATED)
   ApiResponse<GroupResponse> create(@Valid @RequestBody CreateGroupRequest request) {
     return ApiResponse.of(
-        "GROUP_CREATED", GroupResponse.from(service.create(request.managerId(), request.name())));
+        "GROUP_CREATED",
+        GroupResponse.from(
+            service.create(request.managerId(), request.name(), request.description())));
   }
 
   @Operation(
       summary = "초대 코드로 그룹 가입",
-      description = "회원이 관리자로부터 전달받은 6자리 초대 코드를 입력해 그룹에 가입합니다.",
+      description = "회원이 관리자로부터 전달받은 그룹 ID를 입력해 그룹에 가입합니다.",
       responses = {
         @io.swagger.v3.oas.annotations.responses.ApiResponse(
             responseCode = "200",
             description = "그룹 가입 성공"),
         @io.swagger.v3.oas.annotations.responses.ApiResponse(
             responseCode = "404",
-            description = "유효하지 않은 초대 코드"),
+            description = "존재하지 않는 그룹 ID"),
         @io.swagger.v3.oas.annotations.responses.ApiResponse(
             responseCode = "409",
             description = "이미 가입한 그룹")
@@ -55,7 +57,7 @@ public class GroupController {
   @PostMapping("/groups/join")
   ApiResponse<GroupResponse> join(@Valid @RequestBody JoinGroupRequest request) {
     return ApiResponse.of(
-        "GROUP_JOINED", GroupResponse.from(service.join(request.memberId(), request.inviteCode())));
+        "GROUP_JOINED", GroupResponse.from(service.join(request.memberId(), request.groupId())));
   }
 
   @Operation(summary = "내 그룹 목록 조회", description = "회원이 가입한 모든 편의점 그룹을 조회합니다.")
@@ -100,22 +102,23 @@ public class GroupController {
   public record CreateGroupRequest(
       @Schema(description = "그룹을 생성하는 MANAGER ID", example = "1") @NotNull Long managerId,
       @Schema(description = "편의점 또는 근무 그룹명", example = "모아모아 편의점 야간조") @NotBlank @Size(max = 80)
-          String name) {}
+          String name,
+      @Schema(description = "그룹에서 관리할 업무 설명", example = "야간 근무 및 오픈 준비 업무")
+          @Size(max = 200)
+          String description) {}
 
   @Schema(description = "그룹 가입 요청")
   public record JoinGroupRequest(
       @Schema(description = "가입할 회원 ID", example = "2") @NotNull Long memberId,
-      @Schema(description = "그룹 생성 시 발급된 6자리 숫자", example = "381204", pattern = "^[0-9]{6}$")
-          @Pattern(regexp = "\\d{6}")
-          String inviteCode) {}
+      @Schema(description = "가입할 그룹 ID", example = "1") @NotNull @Positive Long groupId) {}
 
   @Schema(description = "그룹 정보")
   public record GroupResponse(
       @Schema(description = "그룹 ID", example = "1") Long groupId,
       @Schema(description = "그룹명", example = "모아모아 편의점 야간조") String name,
-      @Schema(description = "6자리 초대 코드", example = "381204") String inviteCode) {
+      @Schema(description = "그룹 설명", example = "야간 근무 및 오픈 준비 업무") String description) {
     static GroupResponse from(WorkGroup group) {
-      return new GroupResponse(group.getId(), group.getName(), group.getInviteCode());
+      return new GroupResponse(group.getId(), group.getName(), group.getDescription());
     }
   }
 
