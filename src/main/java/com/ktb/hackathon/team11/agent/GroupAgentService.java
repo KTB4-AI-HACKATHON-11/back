@@ -695,17 +695,7 @@ public class GroupAgentService {
 
   private String deterministicReport(List<AgentAiClient.ToolResult> results) {
     return results.stream()
-        .map(
-            result -> {
-              String report =
-                  (result.success() ? "완료: " : "처리 실패: ") + result.summary();
-              if (result.decisionBasis() == null || result.decisionBasis().isBlank()) return report;
-              String sources =
-                  result.evidence().isEmpty()
-                      ? ""
-                      : " (" + String.join(", ", result.evidence()) + ")";
-              return report + "\nAI가 참고한 정보: " + result.decisionBasis() + sources;
-            })
+        .map(result -> (result.success() ? "완료: " : "처리 실패: ") + result.summary())
         .collect(java.util.stream.Collectors.joining("\n"));
   }
 
