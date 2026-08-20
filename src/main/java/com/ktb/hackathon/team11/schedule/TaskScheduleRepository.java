@@ -11,5 +11,13 @@ public interface TaskScheduleRepository extends JpaRepository<TaskSchedule, Long
 
   List<TaskSchedule> findAllByActiveTrueAndStartDateLessThanEqualAndEndDateIsNull(LocalDate d);
 
+  List<TaskSchedule>
+      findAllByTaskTemplateGroupIdAndActiveTrueAndStartDateLessThanEqualAndEndDateGreaterThanEqual(
+          long groupId, LocalDate d1, LocalDate d2);
+
+  List<TaskSchedule>
+      findAllByTaskTemplateGroupIdAndActiveTrueAndStartDateLessThanEqualAndEndDateIsNull(
+          long groupId, LocalDate date);
+
   Optional<TaskSchedule> findFirstByTaskTemplateIdOrderByIdDesc(Long taskTemplateId);
 }

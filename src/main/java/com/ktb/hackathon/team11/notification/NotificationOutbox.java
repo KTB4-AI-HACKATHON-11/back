@@ -85,4 +85,12 @@ public class NotificationOutbox extends BaseEntity {
     status = NotificationOutboxStatus.CANCELLED;
     lastError = reason;
   }
+
+  public void reopen(LocalDateTime now) {
+    status = NotificationOutboxStatus.PENDING;
+    attempts = 0;
+    nextAttemptAt = now;
+    sentAt = null;
+    lastError = null;
+  }
 }

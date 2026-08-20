@@ -27,7 +27,6 @@ public class TaskVerificationService {
   private final TaskAssignmentRepository assignments;
   private final TaskScheduleRepository schedules;
   private final GroupService groups;
-  private final GroupMemberRepository memberships;
   private final PhotoInspector photoInspector;
   private final FileStorage storage;
   private final Clock clock;
@@ -48,14 +47,7 @@ public class TaskVerificationService {
     GroupMember manager = groups.requireMember(template.getGroup().getId(), managerId);
     if (manager.getGroupRole() != MemberRole.MANAGER)
       throw new BusinessException(ErrorCode.VERIFICATION_SETTINGS_UPDATE_FORBIDDEN);
-
-    GroupMember workerMembership =
-        memberships
-            .findByGroupIdAndMemberId(template.getGroup().getId(), workerId)
-            .orElseThrow(() -> new BusinessException(ErrorCode.WORKER_NOT_IN_GROUP));
-    if (workerMembership.getGroupRole() != MemberRole.WORKER)
-      throw new BusinessException(ErrorCode.WORKER_NOT_IN_GROUP);
-    Member worker = workerMembership.getMember();
+    Member worker = groups.requireWorker(template.getGroup().getId(), workerId).getMember();
 
     LocalDateTime newDueAt = dueAt.atZoneSameInstant(SERVICE_ZONE).toLocalDateTime();
     if (!newDueAt.isAfter(LocalDateTime.now(clock)))

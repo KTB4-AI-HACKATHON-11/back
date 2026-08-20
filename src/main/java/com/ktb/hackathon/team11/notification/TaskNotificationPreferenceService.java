@@ -27,7 +27,8 @@ public class TaskNotificationPreferenceService {
     template.updateCompletionNotification(enabled);
     if (!enabled) {
       outboxes
-          .findAllByTaskTemplateIdAndStatus(taskId, NotificationOutboxStatus.PENDING)
+          .findAllByTaskTemplateIdAndStatusAndType(
+              taskId, NotificationOutboxStatus.PENDING, NotificationType.TASK_COMPLETED)
           .forEach(item -> item.cancel("태스크 완료 알림이 해제되었습니다."));
     }
     return template.isNotifyOnCompletion();

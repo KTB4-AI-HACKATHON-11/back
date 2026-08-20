@@ -1,5 +1,6 @@
 package com.ktb.hackathon.team11.group;
 
+import com.ktb.hackathon.team11.auth.SessionService;
 import com.ktb.hackathon.team11.global.response.ApiResponse;
 import com.ktb.hackathon.team11.member.MemberRole;
 import io.swagger.v3.oas.annotations.Operation;
@@ -19,6 +20,7 @@ import org.springframework.web.bind.annotation.*;
 @Tag(name = "2. 그룹", description = "편의점 그룹 생성, 초대 코드 가입, 소속 조회 API")
 public class GroupController {
   private final GroupService service;
+  private final SessionService sessions;
 
   @Operation(
       summary = "그룹 생성",
@@ -33,7 +35,10 @@ public class GroupController {
       })
   @PostMapping("/groups")
   @ResponseStatus(HttpStatus.CREATED)
-  ApiResponse<GroupResponse> create(@Valid @RequestBody CreateGroupRequest request) {
+  ApiResponse<GroupResponse> create(
+      @CookieValue(name = SessionService.COOKIE_NAME, required = false) String token,
+      @Valid @RequestBody CreateGroupRequest request) {
+    sessions.require(token, request.managerId());
     return ApiResponse.of(
         "GROUP_CREATED",
         GroupResponse.from(
@@ -55,7 +60,10 @@ public class GroupController {
             description = "이미 가입한 그룹")
       })
   @PostMapping("/groups/join")
-  ApiResponse<GroupResponse> join(@Valid @RequestBody JoinGroupRequest request) {
+  ApiResponse<GroupResponse> join(
+      @CookieValue(name = SessionService.COOKIE_NAME, required = false) String token,
+      @Valid @RequestBody JoinGroupRequest request) {
+    sessions.require(token, request.memberId());
     return ApiResponse.of(
         "GROUP_JOINED", GroupResponse.from(service.join(request.memberId(), request.groupId())));
   }
@@ -73,8 +81,10 @@ public class GroupController {
       })
   @GetMapping("/groups/{groupId}")
   ApiResponse<GroupDetailResponse> detail(
+      @CookieValue(name = SessionService.COOKIE_NAME, required = false) String token,
       @Parameter(description = "그룹 ID", example = "1") @PathVariable long groupId,
       @Parameter(description = "조회 회원 ID", example = "2") @RequestParam long memberId) {
+    sessions.require(token, memberId);
     return ApiResponse.of(
         "SUCCESS",
         "그룹 상세 조회 성공",
@@ -83,7 +93,8 @@ public class GroupController {
 
   @Operation(summary = "내 그룹 목록 조회", description = "회원이 가입한 편의점 그룹을 offset과 limit 기준으로 잘라 조회합니다.")
   @GetMapping("/members/{memberId}/groups")
-  ApiResponse<List<GroupResponse>> mine(
+  ApiResponse<List<GroupDetailResponse>> mine(
+      @CookieValue(name = SessionService.COOKIE_NAME, required = false) String token,
       @Parameter(description = "조회할 회원 ID", example = "2") @PathVariable long memberId,
       @Parameter(description = "건너뛸 그룹 수", example = "0") @RequestParam(defaultValue = "0")
           @PositiveOrZero
@@ -91,10 +102,11 @@ public class GroupController {
       @Parameter(description = "조회할 그룹 수", example = "20") @RequestParam(defaultValue = "20")
           @Positive
           int limit) {
+    sessions.require(token, memberId);
     return ApiResponse.of(
         "GROUPS_FOUND",
-        service.groupsOf(memberId, offset, limit).stream()
-            .map(group -> GroupResponse.from(group.getGroup()))
+        service.groupDetailsOf(memberId, offset, limit).stream()
+            .map(GroupDetailResponse::from)
             .toList());
   }
 
@@ -111,8 +123,10 @@ public class GroupController {
       })
   @GetMapping("/groups/{groupId}/members")
   ApiResponse<List<GroupMemberResponse>> members(
+      @CookieValue(name = SessionService.COOKIE_NAME, required = false) String token,
       @Parameter(description = "그룹 ID", example = "1") @PathVariable long groupId,
       @Parameter(description = "요청 관리자 ID", example = "1") @RequestParam long requesterId) {
+    sessions.require(token, requesterId);
     return ApiResponse.of(
         "GROUP_MEMBERS_FOUND",
         service.membersOf(groupId, requesterId).stream()

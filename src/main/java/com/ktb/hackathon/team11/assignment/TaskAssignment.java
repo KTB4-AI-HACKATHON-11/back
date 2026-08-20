@@ -105,10 +105,24 @@ public class TaskAssignment extends BaseEntity {
 
   public void retake() {
     status = AssignmentStatus.RETAKE_REQUIRED;
+    completedAt = null;
+  }
+
+  public void requestManagerReview() {
+    if (status != AssignmentStatus.RETAKE_REQUIRED)
+      throw new BusinessException(ErrorCode.TASK_NOT_AVAILABLE);
+    status = AssignmentStatus.MANAGER_REVIEW_REQUESTED;
   }
 
   public void delayed() {
     status = AssignmentStatus.VERIFICATION_DELAYED;
+  }
+
+  public void restorePhotoSubmission(AssignmentStatus previousStatus) {
+    if (previousStatus != AssignmentStatus.PENDING
+        && previousStatus != AssignmentStatus.RETAKE_REQUIRED)
+      throw new BusinessException(ErrorCode.TASK_NOT_AVAILABLE);
+    status = previousStatus;
   }
 
   public void updateSchedule(Member worker, LocalDateTime newDueAt) {

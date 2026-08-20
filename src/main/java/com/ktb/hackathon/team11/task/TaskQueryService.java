@@ -12,9 +12,11 @@ import com.ktb.hackathon.team11.global.exception.BusinessException;
 import com.ktb.hackathon.team11.global.exception.ErrorCode;
 import com.ktb.hackathon.team11.group.GroupService;
 import com.ktb.hackathon.team11.member.Member;
+import com.ktb.hackathon.team11.member.MemberRole;
 import com.ktb.hackathon.team11.storage.FileStorage;
 import java.time.Clock;
 import java.time.Duration;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
@@ -46,18 +48,22 @@ public class TaskQueryService {
 
   public TaskListResponse list(long groupId, long requesterId, int offset, int limit, TaskStatus filter) {
     groups.requireMember(groupId, requesterId);
-    Map<Long, List<TaskAssignment>> assignmentsByTemplate =
+    Map<TaskRunId, List<TaskAssignment>> assignmentsByRun =
         assignments.findAllByScheduleTaskTemplateGroupId(groupId).stream()
-            .collect(Collectors.groupingBy(this::templateId));
+            .collect(Collectors.groupingBy(TaskRunId::from));
     List<TaskSummary> all =
-        templates.findAllByGroupIdAndActiveTrueOrderByCreatedAtDesc(groupId).stream()
+        assignmentsByRun.entrySet().stream()
+            .filter(entry -> entry.getValue().getFirst().getSchedule().getTaskTemplate().isActive())
             .map(
-                template ->
+                entry ->
                     summary(
-                        template,
-                        assignmentsByTemplate.getOrDefault(template.getId(), List.of())))
-            .filter(summary -> summary.itemCount() > 0)
+                        entry.getKey(),
+                        entry.getValue().getFirst().getSchedule().getTaskTemplate(),
+                        entry.getValue()))
             .filter(summary -> filter == null || summary.status() == filter)
+            .sorted(
+                Comparator.comparing(TaskSummary::dueAt, Comparator.nullsLast(Comparator.naturalOrder()))
+                    .reversed())
             .toList();
 
     int from = Math.min(offset, all.size());
@@ -69,17 +75,52 @@ public class TaskQueryService {
     TaskTemplate template =
         templates.findById(taskId)
             .orElseThrow(() -> new BusinessException(ErrorCode.TASK_NOT_FOUND));
-    groups.requireMember(template.getGroup().getId(), requesterId);
-    List<TaskAssignment> taskAssignments = taskAssignments(taskId);
-    if (taskAssignments.isEmpty()) throw new BusinessException(ErrorCode.TASK_NOT_FOUND);
+    boolean canManage =
+        groups.requireMember(template.getGroup().getId(), requesterId).getGroupRole()
+            == MemberRole.MANAGER;
+    Map<TaskRunId, List<TaskAssignment>> runs =
+        taskAssignments(taskId).stream().collect(Collectors.groupingBy(TaskRunId::from));
+    var latestRun =
+        runs.entrySet().stream()
+            .max(
+                Comparator.comparing((Map.Entry<TaskRunId, List<TaskAssignment>> entry) -> entry.getKey().scheduledDate())
+                    .thenComparing(entry -> entry.getKey().scheduleId()))
+            .orElseThrow(() -> new BusinessException(ErrorCode.TASK_NOT_FOUND));
+    return detail(template, latestRun.getKey(), latestRun.getValue(), canManage);
+  }
 
-    TaskSummary summary = summary(template, taskAssignments);
+  public TaskDetail detailRun(String runId, long requesterId) {
+    TaskRunId key = TaskRunId.parse(runId);
+    List<TaskAssignment> runAssignments =
+        assignments.findAllByScheduleIdAndScheduledDate(key.scheduleId(), key.scheduledDate());
+    if (runAssignments.isEmpty()) throw new BusinessException(ErrorCode.TASK_NOT_FOUND);
+    TaskTemplate template = runAssignments.getFirst().getSchedule().getTaskTemplate();
+    boolean canManage =
+        groups.requireMember(template.getGroup().getId(), requesterId).getGroupRole()
+            == MemberRole.MANAGER;
+    return detail(template, key, runAssignments, canManage);
+  }
+
+  private TaskDetail detail(
+      TaskTemplate template,
+      TaskRunId runId,
+      List<TaskAssignment> runAssignments,
+      boolean canManage) {
+    List<TaskAssignment> taskAssignments =
+        runAssignments.stream()
+            .sorted(Comparator.comparing(a -> a.getTaskItemTemplate().getSequence()))
+            .toList();
+    TaskSummary summary = summary(runId, template, taskAssignments);
     Map<Long, TaskAttempt> latestAttempts = latestAttemptsByAssignment(taskAssignments);
     Map<Long, TaskPhoto> photosByAttempt = photosByAttempt(latestAttempts);
     TaskAssignment primaryAssignment = taskAssignments.getFirst();
     return new TaskDetail(
-        taskId,
+        template.getId(),
+        runId.value(),
+        runId.scheduleId(),
+        runId.scheduledDate(),
         template.getGroup().getId(),
+        template.getGroup().getName(),
         template.getTitle(),
         template.getSourceMessage(),
         template.getCreator().getId(),
@@ -93,6 +134,7 @@ public class TaskQueryService {
         toOffsetDateTime(primaryAssignment.getDueAt()),
         summary.status(),
         summary.progress(),
+        canManage,
         template.isNotifyOnCompletion(),
         toOffsetDateTime(template.getCreatedAt()),
         taskAssignments.stream()
@@ -120,15 +162,13 @@ public class TaskQueryService {
         .collect(Collectors.toMap(photo -> photo.getAttempt().getId(), photo -> photo));
   }
 
-  private long templateId(TaskAssignment assignment) {
-    return assignment.getSchedule().getTaskTemplate().getId();
-  }
-
-  private TaskSummary summary(TaskTemplate template, List<TaskAssignment> taskAssignments) {
+  private TaskSummary summary(
+      TaskRunId runId, TaskTemplate template, List<TaskAssignment> taskAssignments) {
     int itemCount = taskAssignments.size();
     int completed = (int) taskAssignments.stream().filter(this::performed).count();
     return new TaskSummary(
         template.getId(),
+        runId.value(),
         template.getTitle(),
         taskAssignments.isEmpty() ? null : taskAssignments.get(0).getAssignee(),
         taskAssignments.isEmpty() ? null : toOffsetDateTime(taskAssignments.get(0).getDueAt()),
@@ -149,6 +189,7 @@ public class TaskQueryService {
     TaskPhoto photo = attempt == null ? null : photosByAttempt.get(attempt.getId());
     return new Checklist(
         assignment.getId(),
+        assignment.getId(),
         item.getSequence(),
         item.getTitle(),
         item.getInstruction(),
@@ -156,6 +197,10 @@ public class TaskQueryService {
         item.getVerificationRule(),
         item.isEnabled(),
         item.hasReferenceImage() ? storage.createReadUrl(item.getReferenceImageKey(), Duration.ofMinutes(urlMinutes)) : null,
+        assignment.getStatus(),
+        attempt == null ? null : attempt.getId(),
+        attempt == null ? null : attempt.getStatus(),
+        attempt == null ? 0 : attempt.getAttemptNumber(),
         performed(assignment),
         toOffsetDateTime(assignment.getCompletedAt()),
         photo == null ? null : storage.createReadUrl(photo.getObjectKey(), Duration.ofMinutes(urlMinutes)));
@@ -193,6 +238,7 @@ public class TaskQueryService {
 
   public record TaskSummary(
       Long taskId,
+      String runId,
       String title,
       Long workerId,
       String workerNickname,
@@ -202,17 +248,21 @@ public class TaskQueryService {
       int completedItemCount,
       int progress,
       boolean hasPhotoVerification) {
-    private TaskSummary(Long taskId, String title, Member worker,
+    private TaskSummary(Long taskId, String runId, String title, Member worker,
         OffsetDateTime dueAt, TaskStatus status, int itemCount, int completedItemCount,
         int progress, boolean hasPhotoVerification) {
-      this(taskId, title, worker == null ? null : worker.getId(), worker == null ? null : worker.getNickname(),
+      this(taskId, runId, title, worker == null ? null : worker.getId(), worker == null ? null : worker.getNickname(),
           dueAt, status, itemCount, completedItemCount, progress, hasPhotoVerification);
     }
   }
 
   public record TaskDetail(
       Long taskId,
+      String runId,
+      Long scheduleId,
+      LocalDate scheduledDate,
       Long groupId,
+      String groupName,
       String title,
       String message,
       Long managerId,
@@ -222,12 +272,14 @@ public class TaskQueryService {
       OffsetDateTime dueAt,
       TaskStatus status,
       int progress,
+      boolean canManage,
       boolean notifyOnCompletion,
       OffsetDateTime createdAt,
       List<Checklist> checklists) {}
 
   public record Checklist(
       Long checklistId,
+      Long assignmentId,
       int sequence,
       String title,
       String instruction,
@@ -235,6 +287,10 @@ public class TaskQueryService {
       String rule,
       boolean enabled,
       String referencePhotoUrl,
+      AssignmentStatus assignmentStatus,
+      Long latestAttemptId,
+      com.ktb.hackathon.team11.attempt.AttemptStatus latestAttemptStatus,
+      int attemptNumber,
       boolean performed,
       OffsetDateTime performedAt,
       String submittedPhotoUrl) {}

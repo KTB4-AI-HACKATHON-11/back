@@ -1,5 +1,6 @@
 package com.ktb.hackathon.team11.task;
 
+import com.ktb.hackathon.team11.auth.SessionService;
 import com.ktb.hackathon.team11.global.response.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -16,6 +17,7 @@ import org.springframework.web.bind.annotation.*;
 @Tag(name = "3. 업무 조회", description = "그룹 태스크 목록과 상세 조회 API")
 public class TaskQueryController {
   private final TaskQueryService service;
+  private final SessionService sessions;
 
   @Operation(
       summary = "그룹 태스크 목록 조회",
@@ -28,11 +30,13 @@ public class TaskQueryController {
       })
   @GetMapping("/groups/{groupId}/tasks")
   ApiResponse<TaskQueryService.TaskListResponse> list(
+      @CookieValue(name = SessionService.COOKIE_NAME, required = false) String token,
       @PathVariable long groupId,
       @RequestParam long requesterId,
       @RequestParam(defaultValue = "0") @PositiveOrZero int offset,
       @RequestParam(defaultValue = "20") @Positive int limit,
       @RequestParam(required = false) TaskStatus status) {
+    sessions.require(token, requesterId);
     return ApiResponse.of(
         "TASK_LIST_FOUND", service.list(groupId, requesterId, offset, limit, status));
   }
@@ -50,8 +54,20 @@ public class TaskQueryController {
       })
   @GetMapping("/tasks/{taskId}")
   ApiResponse<TaskQueryService.TaskDetail> detail(
+      @CookieValue(name = SessionService.COOKIE_NAME, required = false) String token,
       @PathVariable long taskId,
       @Parameter(description = "조회 회원 ID", example = "2") @RequestParam long requesterId) {
+    sessions.require(token, requesterId);
     return ApiResponse.of("TASK_FOUND", service.detail(taskId, requesterId));
+  }
+
+  @Operation(summary = "태스크 실행 회차 상세 조회", description = "반복 일정의 특정 날짜 실행 회차만 조회합니다.")
+  @GetMapping("/task-runs/{runId}")
+  ApiResponse<TaskQueryService.TaskDetail> detailRun(
+      @CookieValue(name = SessionService.COOKIE_NAME, required = false) String token,
+      @PathVariable String runId,
+      @Parameter(description = "조회 회원 ID", example = "2") @RequestParam long requesterId) {
+    sessions.require(token, requesterId);
+    return ApiResponse.of("TASK_RUN_FOUND", service.detailRun(runId, requesterId));
   }
 }

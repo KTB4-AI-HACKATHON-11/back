@@ -30,7 +30,16 @@ public interface TaskAssignmentRepository extends JpaRepository<TaskAssignment, 
       attributePaths = {"schedule", "schedule.taskTemplate", "taskItemTemplate", "assignee"})
   List<TaskAssignment> findAllByScheduleTaskTemplateGroupId(Long groupId);
 
-  List<TaskAssignment> findAllByScheduleIdAndScheduledDate(Long scheduleId, LocalDate scheduledDate);
+  @EntityGraph(
+      attributePaths = {
+        "schedule",
+        "schedule.taskTemplate",
+        "schedule.taskTemplate.group",
+        "taskItemTemplate",
+        "assignee"
+      })
+  List<TaskAssignment> findAllByScheduleIdAndScheduledDate(
+      Long scheduleId, LocalDate scheduledDate);
 
   Optional<TaskAssignment> findByIdAndScheduleTaskTemplateId(Long id, Long templateId);
 

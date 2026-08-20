@@ -40,6 +40,8 @@ storage:
 
 task:
   assignment-generation-cron: ${TASK_ASSIGNMENT_GENERATION_CRON:0 0 0 * * *}
+  photo-verification-stale-seconds: ${PHOTO_VERIFICATION_STALE_SECONDS:120}
+  photo-verification-recovery-delay-ms: ${PHOTO_VERIFICATION_RECOVERY_DELAY_MS:30000}
 
 auth:
   session-days: ${AUTH_SESSION_DAYS:7}

@@ -3,6 +3,7 @@ package com.ktb.hackathon.team11.task;
 import com.ktb.hackathon.team11.assignment.AssignmentService;
 import com.ktb.hackathon.team11.assignment.AssignmentStatus;
 import com.ktb.hackathon.team11.assignment.TaskAssignment;
+import com.ktb.hackathon.team11.auth.SessionService;
 import com.ktb.hackathon.team11.global.response.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -19,6 +20,7 @@ import org.springframework.web.bind.annotation.*;
 @Tag(name = "3. 업무 조회", description = "체크리스트 수행 상태 변경 API")
 public class TaskChecklistController {
   private final AssignmentService service;
+  private final SessionService sessions;
 
   @Operation(
       summary = "체크리스트 수행 여부 변경",
@@ -35,9 +37,11 @@ public class TaskChecklistController {
       })
   @PatchMapping("/tasks/{taskId}/sub-tasks/{subTaskId}")
   ApiResponse<ChecklistUpdateResponse> update(
+      @CookieValue(name = SessionService.COOKIE_NAME, required = false) String token,
       @Parameter(description = "태스크 ID", example = "930001") @PathVariable long taskId,
       @Parameter(description = "체크리스트 배정 ID", example = "940001") @PathVariable long subTaskId,
       @Valid @RequestBody UpdateRequest request) {
+    sessions.require(token, request.workerId());
     return ApiResponse.of(
         "TASK_CHECKLIST_UPDATED",
         ChecklistUpdateResponse.from(

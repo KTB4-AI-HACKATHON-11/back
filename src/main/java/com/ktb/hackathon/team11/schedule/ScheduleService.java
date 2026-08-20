@@ -18,7 +18,6 @@ public class ScheduleService {
   private final TaskScheduleRepository schedules;
   private final TaskAssignmentRepository assignments;
   private final TaskTemplateService templates;
-  private final MemberService members;
   private final GroupService groups;
   private final TaskItemTemplateRepository items;
   private final Clock clock;
@@ -40,8 +39,7 @@ public class ScheduleService {
     groups.requireManager(t.getGroup().getId(), managerId);
     Member a = null;
     if (assigneeId != null) {
-      a = members.requireRole(assigneeId, MemberRole.WORKER);
-      groups.requireMember(t.getGroup().getId(), assigneeId);
+      a = groups.requireWorker(t.getGroup().getId(), assigneeId).getMember();
     }
     return schedules.save(new TaskSchedule(t, a, sd, ed, st, et, rt, days, early, late));
   }
@@ -53,14 +51,22 @@ public class ScheduleService {
   }
 
   private int generateGroup(long groupId, LocalDate date) {
-    List<TaskSchedule> all =
+    List<TaskSchedule> groupSchedules =
         new ArrayList<>(
-            schedules.findAllByActiveTrueAndStartDateLessThanEqualAndEndDateGreaterThanEqual(
-                date, date));
-    all.addAll(schedules.findAllByActiveTrueAndStartDateLessThanEqualAndEndDateIsNull(date));
+            schedules
+                .findAllByTaskTemplateGroupIdAndActiveTrueAndStartDateLessThanEqualAndEndDateGreaterThanEqual(
+                    groupId, date, date));
+    groupSchedules.addAll(
+        schedules
+            .findAllByTaskTemplateGroupIdAndActiveTrueAndStartDateLessThanEqualAndEndDateIsNull(
+                groupId, date));
+    return generateSchedules(groupSchedules, date);
+  }
+
+  private int generateSchedules(List<TaskSchedule> candidateSchedules, LocalDate date) {
     int count = 0;
-    for (TaskSchedule s : all)
-      if (s.getTaskTemplate().getGroup().getId().equals(groupId) && s.occursOn(date)) {
+    for (TaskSchedule s : candidateSchedules)
+      if (s.occursOn(date)) {
         TaskSchedule.Window w = s.windowFor(date);
         for (TaskItemTemplate i :
             items.findAllByTaskTemplateIdOrderBySequence(s.getTaskTemplate().getId()))
@@ -77,7 +83,11 @@ public class ScheduleService {
   @Transactional
   public void generateTomorrow() {
     LocalDate d = LocalDate.now(clock).plusDays(1);
-    for (TaskSchedule s : schedules.findAll())
-      if (s.isActive()) generateGroup(s.getTaskTemplate().getGroup().getId(), d);
+    List<TaskSchedule> activeSchedules =
+        new ArrayList<>(
+            schedules.findAllByActiveTrueAndStartDateLessThanEqualAndEndDateGreaterThanEqual(d, d));
+    activeSchedules.addAll(
+        schedules.findAllByActiveTrueAndStartDateLessThanEqualAndEndDateIsNull(d));
+    generateSchedules(activeSchedules, d);
   }
 }

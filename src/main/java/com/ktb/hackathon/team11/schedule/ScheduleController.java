@@ -1,5 +1,6 @@
 package com.ktb.hackathon.team11.schedule;
 
+import com.ktb.hackathon.team11.auth.SessionService;
 import com.ktb.hackathon.team11.global.response.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -19,6 +20,7 @@ import org.springframework.web.bind.annotation.*;
 @Tag(name = "4. 업무 일정", description = "담당자·근무 시간대·반복 규칙과 날짜별 업무 생성 API")
 public class ScheduleController {
   private final ScheduleService service;
+  private final SessionService sessions;
 
   @Operation(
       summary = "반복 일정 등록",
@@ -38,8 +40,10 @@ public class ScheduleController {
   @PostMapping("/task-templates/{id}/schedules")
   @ResponseStatus(HttpStatus.CREATED)
   ApiResponse<Long> create(
+      @CookieValue(name = SessionService.COOKIE_NAME, required = false) String token,
       @Parameter(description = "업무 템플릿 ID", example = "3") @PathVariable long id,
       @Valid @RequestBody ScheduleRequest request) {
+    sessions.require(token, request.managerId());
     return ApiResponse.of(
         "SCHEDULE_CREATED",
         service
@@ -64,7 +68,10 @@ public class ScheduleController {
           "데모 또는 운영자 확인을 위해 반복 일정에 해당하는 날짜별 실제 업무를 즉시 생성합니다. 같은 날짜를 다시 호출해도 중복 생성되지 않습니다.")
   @PostMapping("/groups/{groupId}/assignments/generate")
   ApiResponse<Integer> generate(
-      @PathVariable long groupId, @Valid @RequestBody GenerateRequest request) {
+      @CookieValue(name = SessionService.COOKIE_NAME, required = false) String token,
+      @PathVariable long groupId,
+      @Valid @RequestBody GenerateRequest request) {
+    sessions.require(token, request.managerId());
     return ApiResponse.of(
         "ASSIGNMENTS_GENERATED",
         service.generate(groupId, request.managerId(), request.targetDate()));

@@ -29,11 +29,17 @@ public class CompletionNotificationService {
       return;
 
     Long recipientId = template.getCreator().getId();
-    if (outboxes.existsByScheduleIdAndScheduledDateAndRecipientIdAndType(
-        assignment.getSchedule().getId(),
-        assignment.getScheduledDate(),
-        recipientId,
-        NotificationType.TASK_COMPLETED)) return;
+    var existing =
+        outboxes.findByScheduleIdAndScheduledDateAndRecipientIdAndType(
+            assignment.getSchedule().getId(),
+            assignment.getScheduledDate(),
+            recipientId,
+            NotificationType.TASK_COMPLETED);
+    if (existing.isPresent()) {
+      if (existing.get().getStatus() == NotificationOutboxStatus.CANCELLED)
+        existing.get().reopen(LocalDateTime.now(clock));
+      return;
+    }
 
     outboxes.save(
         new NotificationOutbox(

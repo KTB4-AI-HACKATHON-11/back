@@ -55,8 +55,13 @@ public class GroupService {
   }
 
   public GroupDetail detail(long groupId, long memberId) {
-    WorkGroup group = requireGroup(groupId);
     GroupMember membership = requireMember(groupId, memberId);
+    return detail(membership);
+  }
+
+  private GroupDetail detail(GroupMember membership) {
+    WorkGroup group = membership.getGroup();
+    long groupId = group.getId();
     long memberCount = memberships.countByGroupId(groupId);
     long managerCount = memberships.countByGroupIdAndGroupRole(groupId, MemberRole.MANAGER);
     long workerCount = memberships.countByGroupIdAndGroupRole(groupId, MemberRole.WORKER);
@@ -90,6 +95,13 @@ public class GroupService {
     return gm;
   }
 
+  public GroupMember requireWorker(long groupId, long memberId) {
+    return memberships
+        .findByGroupIdAndMemberId(groupId, memberId)
+        .filter(membership -> membership.getGroupRole() == MemberRole.WORKER)
+        .orElseThrow(() -> new BusinessException(ErrorCode.WORKER_NOT_IN_GROUP));
+  }
+
   public List<GroupMember> groupsOf(long memberId) {
     members.requireMember(memberId);
     return memberships.findAllByMemberId(memberId);
@@ -105,6 +117,10 @@ public class GroupService {
         .skip(remainder)
         .limit(limit)
         .toList();
+  }
+
+  public List<GroupDetail> groupDetailsOf(long memberId, int offset, int limit) {
+    return groupsOf(memberId, offset, limit).stream().map(this::detail).toList();
   }
 
   public List<GroupMember> membersOf(long groupId, long requesterId) {

@@ -22,4 +22,8 @@ public interface GroupMemberRepository extends JpaRepository<GroupMember, Long> 
 
   @EntityGraph(attributePaths = "member")
   List<GroupMember> findAllByGroupId(Long groupId);
+
+  @EntityGraph(attributePaths = "member")
+  List<GroupMember> findAllByGroupIdAndGroupRole(
+      Long groupId, com.ktb.hackathon.team11.member.MemberRole groupRole);
 }

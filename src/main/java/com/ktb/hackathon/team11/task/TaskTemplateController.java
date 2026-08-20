@@ -1,6 +1,7 @@
 package com.ktb.hackathon.team11.task;
 
 import com.ktb.hackathon.team11.ai.CompletionType;
+import com.ktb.hackathon.team11.auth.SessionService;
 import com.ktb.hackathon.team11.global.response.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -22,6 +23,7 @@ import org.springframework.web.multipart.MultipartFile;
 public class TaskTemplateController {
   private final TaskTemplateService service;
   private final TaskRegistrationService registrationService;
+  private final SessionService sessions;
 
   @Operation(
       summary = "AI 체크리스트 생성",
@@ -40,8 +42,10 @@ public class TaskTemplateController {
       })
   @PostMapping("/groups/{groupId}/tasks/generate")
   ApiResponse<TaskTemplateService.GeneratedTasksResponse> generate(
+      @CookieValue(name = SessionService.COOKIE_NAME, required = false) String token,
       @Parameter(description = "업무를 등록할 그룹 ID", example = "1") @PathVariable long groupId,
       @Valid @RequestBody GenerateTasksRequest request) {
+    sessions.require(token, request.managerId());
     return ApiResponse.of(
         "TASKS_GENERATED",
         service.generateTasks(
@@ -55,10 +59,12 @@ public class TaskTemplateController {
   @PostMapping(value = "/groups/{groupId}/tasks", consumes = "multipart/form-data")
   @ResponseStatus(HttpStatus.CREATED)
   ApiResponse<TaskRegistrationService.TaskCreatedResponse> createTask(
+      @CookieValue(name = SessionService.COOKIE_NAME, required = false) String token,
       @PathVariable long groupId,
       @Valid @RequestPart("request") CreateTaskRequest request,
       @RequestPart(value = "referencePhotos", required = false)
           List<MultipartFile> referencePhotos) {
+    sessions.require(token, request.managerId());
     return ApiResponse.of(
         "TASK_CREATED",
         registrationService.create(
@@ -99,7 +105,10 @@ public class TaskTemplateController {
   @PostMapping("/groups/{groupId}/task-templates")
   @ResponseStatus(HttpStatus.CREATED)
   ApiResponse<TemplateResponse> create(
-      @PathVariable long groupId, @Valid @RequestBody CreateTemplateRequest request) {
+      @CookieValue(name = SessionService.COOKIE_NAME, required = false) String token,
+      @PathVariable long groupId,
+      @Valid @RequestBody CreateTemplateRequest request) {
+    sessions.require(token, request.managerId());
     TaskTemplate template =
         service.create(
             groupId,
@@ -122,7 +131,10 @@ public class TaskTemplateController {
   @Operation(summary = "그룹 업무 템플릿 목록", description = "그룹 구성원이 현재 활성화된 업무 템플릿과 하위 업무를 조회합니다.")
   @GetMapping("/groups/{groupId}/task-templates")
   ApiResponse<List<TemplateResponse>> list(
-      @PathVariable long groupId, @RequestParam long memberId) {
+      @CookieValue(name = SessionService.COOKIE_NAME, required = false) String token,
+      @PathVariable long groupId,
+      @RequestParam long memberId) {
+    sessions.require(token, memberId);
     return ApiResponse.of(
         "TASK_TEMPLATES_FOUND",
         service.list(groupId, memberId).stream()
@@ -132,7 +144,11 @@ public class TaskTemplateController {
 
   @Operation(summary = "업무 템플릿 상세", description = "그룹 구성원이 템플릿 하나와 PHOTO/CHECK 하위 업무 전체를 조회합니다.")
   @GetMapping("/task-templates/{id}")
-  ApiResponse<TemplateResponse> detail(@PathVariable long id, @RequestParam long memberId) {
+  ApiResponse<TemplateResponse> detail(
+      @CookieValue(name = SessionService.COOKIE_NAME, required = false) String token,
+      @PathVariable long id,
+      @RequestParam long memberId) {
+    sessions.require(token, memberId);
     TaskTemplate template = service.require(id);
     service.list(template.getGroup().getId(), memberId);
     return ApiResponse.of(
@@ -142,7 +158,10 @@ public class TaskTemplateController {
   @Operation(summary = "업무 템플릿 수정", description = "MANAGER가 템플릿 제목 또는 활성 상태를 변경합니다.")
   @PatchMapping("/task-templates/{id}")
   ApiResponse<TemplateResponse> update(
-      @PathVariable long id, @Valid @RequestBody UpdateTemplateRequest request) {
+      @CookieValue(name = SessionService.COOKIE_NAME, required = false) String token,
+      @PathVariable long id,
+      @Valid @RequestBody UpdateTemplateRequest request) {
+    sessions.require(token, request.managerId());
     TaskTemplate template =
         service.update(id, request.managerId(), request.title(), request.active());
     return ApiResponse.of(
@@ -154,17 +173,23 @@ public class TaskTemplateController {
       description = "PHOTO 하위 업무에 관리자가 참고할 기준 사진을 저장합니다. JPEG, PNG, WebP만 가능하고 최대 10MB입니다.")
   @PostMapping(value = "/task-items/{itemId}/reference-image", consumes = "multipart/form-data")
   ApiResponse<String> reference(
+      @CookieValue(name = SessionService.COOKIE_NAME, required = false) String token,
       @Parameter(description = "PHOTO 하위 업무 ID", example = "10") @PathVariable long itemId,
       @Parameter(description = "요청 관리자 ID", example = "1") @RequestParam long managerId,
       @Parameter(description = "기준 이미지 파일(JPEG/PNG/WebP, 최대 10MB)") @RequestPart
           MultipartFile photo) {
+    sessions.require(token, managerId);
     return ApiResponse.of(
         "REFERENCE_IMAGE_SAVED", service.addReferenceImage(itemId, managerId, photo));
   }
 
   @Operation(summary = "업무 템플릿 비활성화", description = "기존 수행 이력은 보존하고 이후 배정 생성을 막습니다.")
   @DeleteMapping("/task-templates/{id}")
-  ApiResponse<Void> delete(@PathVariable long id, @RequestParam long managerId) {
+  ApiResponse<Void> delete(
+      @CookieValue(name = SessionService.COOKIE_NAME, required = false) String token,
+      @PathVariable long id,
+      @RequestParam long managerId) {
+    sessions.require(token, managerId);
     service.deactivate(id, managerId);
     return ApiResponse.of("TASK_TEMPLATE_DEACTIVATED", null);
   }

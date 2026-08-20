@@ -1,5 +1,6 @@
 package com.ktb.hackathon.team11.knowledge;
 
+import com.ktb.hackathon.team11.auth.SessionService;
 import com.ktb.hackathon.team11.global.response.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -12,6 +13,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.CookieValue;
 
 @RestController
 @RequestMapping("/api/v1/knowledge")
@@ -20,11 +22,14 @@ import org.springframework.web.bind.annotation.RestController;
 public class KnowledgeController {
 
   private final KnowledgeService service;
+  private final SessionService sessions;
 
   @PostMapping("/answer")
   @Operation(summary = "매장 정보 질문", description = "등록된 매장 정보만 근거로 AI 답변을 생성합니다.")
   ApiResponse<KnowledgeService.AnswerResponse> answer(
+      @CookieValue(name = SessionService.COOKIE_NAME, required = false) String token,
       @Valid @RequestBody AnswerRequest request) {
+    sessions.require(token, request.requesterId());
     return ApiResponse.of(
         "KNOWLEDGE_ANSWERED",
         service.answer(

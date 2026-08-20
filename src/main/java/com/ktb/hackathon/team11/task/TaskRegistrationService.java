@@ -25,8 +25,6 @@ public class TaskRegistrationService {
   private final TaskScheduleRepository schedules;
   private final TaskAssignmentRepository assignments;
   private final GroupService groups;
-  private final GroupMemberRepository memberships;
-  private final MemberService members;
   private final PhotoInspector photoInspector;
   private final FileStorage storage;
   private final Clock clock;
@@ -147,6 +145,7 @@ public class TaskRegistrationService {
 
     return new TaskCreatedResponse(
         template.getId(),
+        TaskRunId.from(savedAssignments.getFirst()).value(),
         groupId,
         template.getTitle(),
         new WorkerResponse(worker.getId(), worker.getNickname()),
@@ -157,13 +156,7 @@ public class TaskRegistrationService {
   }
 
   private Member requireGroupWorker(long groupId, long workerId) {
-    Member worker = members.requireMember(workerId);
-    if (memberships
-            .findByGroupIdAndMemberId(groupId, workerId)
-            .map(membership -> membership.getGroupRole() != MemberRole.WORKER)
-            .orElse(true))
-      throw new BusinessException(ErrorCode.WORKER_NOT_IN_GROUP);
-    return worker;
+    return groups.requireWorker(groupId, workerId).getMember();
   }
 
   private List<PhotoInspector.InspectedPhoto> validateAndInspect(
@@ -239,6 +232,7 @@ public class TaskRegistrationService {
 
   public record TaskCreatedResponse(
       Long taskId,
+      String runId,
       Long groupId,
       String title,
       WorkerResponse worker,

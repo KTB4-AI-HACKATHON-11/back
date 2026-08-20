@@ -1,6 +1,7 @@
 package com.ktb.hackathon.team11.attempt;
 
 import com.ktb.hackathon.team11.assignment.AssignmentStatus;
+import com.ktb.hackathon.team11.auth.SessionService;
 import com.ktb.hackathon.team11.global.response.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -17,6 +18,7 @@ import org.springframework.web.multipart.MultipartFile;
 @Tag(name = "6. 사진 인증", description = "PHOTO 업무 제출, AI 판정 결과, 재촬영과 검사 지연 처리 API")
 public class TaskAttemptController {
   private final TaskAttemptService service;
+  private final SessionService sessions;
 
   @Operation(
       summary = "PHOTO 업무 인증 사진 제출",
@@ -42,10 +44,12 @@ public class TaskAttemptController {
       })
   @PostMapping(value = "/assignments/{id}/photo-attempts", consumes = "multipart/form-data")
   ApiResponse<Response> submit(
+      @CookieValue(name = SessionService.COOKIE_NAME, required = false) String token,
       @Parameter(description = "PHOTO 배정 업무 ID", example = "15") @PathVariable long id,
       @Parameter(description = "사진을 제출한 WORKER ID", example = "2") @RequestParam long workerId,
       @Parameter(description = "인증 사진(JPEG/PNG/WebP, 1바이트~10MB)") @RequestPart
           MultipartFile photo) {
+    sessions.require(token, workerId);
     return ApiResponse.of("PHOTO_CHECKED", Response.from(service.submit(id, workerId, photo)));
   }
 
@@ -53,7 +57,11 @@ public class TaskAttemptController {
       summary = "사진 제출 이력 조회",
       description = "그룹 구성원이 특정 배정 업무의 모든 제출 차수와 PASS, RETAKE, DELAYED 결과를 조회합니다.")
   @GetMapping("/assignments/{id}/attempts")
-  ApiResponse<List<Response>> history(@PathVariable long id, @RequestParam long memberId) {
+  ApiResponse<List<Response>> history(
+      @CookieValue(name = SessionService.COOKIE_NAME, required = false) String token,
+      @PathVariable long id,
+      @RequestParam long memberId) {
+    sessions.require(token, memberId);
     return ApiResponse.of(
         "ATTEMPTS_FOUND", service.history(id, memberId).stream().map(Response::from).toList());
   }
@@ -73,7 +81,11 @@ public class TaskAttemptController {
             description = "DELAYED 상태가 아닌 제출")
       })
   @PostMapping("/attempts/{id}/retry")
-  ApiResponse<Response> retry(@PathVariable long id, @RequestParam long managerId) {
+  ApiResponse<Response> retry(
+      @CookieValue(name = SessionService.COOKIE_NAME, required = false) String token,
+      @PathVariable long id,
+      @RequestParam long managerId) {
+    sessions.require(token, managerId);
     return ApiResponse.of("ATTEMPT_RETRIED", Response.from(service.retry(id, managerId)));
   }
 

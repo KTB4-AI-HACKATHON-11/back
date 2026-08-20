@@ -49,6 +49,15 @@ public class SessionService {
   }
 
   @Transactional
+  public Member require(String token, long claimedMemberId) {
+    Member member = require(token);
+    if (!member.getId().equals(claimedMemberId)) {
+      throw new BusinessException(ErrorCode.SESSION_MEMBER_MISMATCH);
+    }
+    return member;
+  }
+
+  @Transactional
   public void revoke(String token) {
     if (token != null && !token.isBlank()) sessions.deleteByTokenHash(hash(token));
   }

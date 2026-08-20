@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -22,6 +23,9 @@ public class KnowledgeService {
   private final ConcurrentMap<String, Conversation> conversations = new ConcurrentHashMap<>();
 
   private static final int MAX_QUESTION_LENGTH = 60_000;
+  private static final int MAX_TURNS_PER_CONVERSATION = 30;
+  private static final int MAX_CONVERSATIONS = 1_000;
+  private static final long CONVERSATION_TTL_MILLIS = 6 * 60 * 60 * 1_000L;
 
   public KnowledgeService(AiTaskClient ai, StoreInfoRepository infos, GroupService groups) {
     this.ai = ai;
@@ -33,38 +37,66 @@ public class KnowledgeService {
       long groupId, long requesterId, String conversationId, String question) {
     groups.requireGroup(groupId);
     groups.requireMember(groupId, requesterId);
+    String publicId =
+        conversationId == null || conversationId.isBlank()
+            ? UUID.randomUUID().toString()
+            : conversationId;
+    String key = groupId + ":" + requesterId + ":" + publicId;
     List<StoreInfo> items = infos.findAllByGroupIdOrderByCategoryAscIdAsc(groupId);
     if (items.isEmpty()) {
       return new AnswerResponse(
-          "아직 등록된 매장 정보가 없어요. 매니저에게 문의해 주세요.", conversationId);
+          "아직 등록된 매장 정보가 없어요. 매니저에게 문의해 주세요.", publicId);
     }
     String information = format(items);
-    String id = conversationId == null || conversationId.isBlank()
-        ? UUID.randomUUID().toString()
-        : groupId + ":" + conversationId;
-    Conversation conversation = conversations.computeIfAbsent(id, ignored -> new Conversation());
+    if (!conversations.containsKey(key)) evictIfFull();
+    Conversation conversation = conversations.computeIfAbsent(key, ignored -> new Conversation());
     synchronized (conversation) {
+      conversation.touch();
       String prompt = questionWithHistory(conversation, question);
       String answer = ai.answerKnowledge(information, prompt);
       conversation.add(question, answer);
-      return new AnswerResponse(answer, conversationId == null ? id : conversationId);
+      return new AnswerResponse(answer, publicId);
     }
+  }
+
+  @Scheduled(fixedDelayString = "${knowledge.conversation-cleanup-ms:600000}")
+  void removeExpiredConversations() {
+    long cutoff = System.currentTimeMillis() - CONVERSATION_TTL_MILLIS;
+    conversations.entrySet().removeIf(entry -> entry.getValue().lastAccessMillis < cutoff);
+  }
+
+  private void evictIfFull() {
+    if (conversations.size() < MAX_CONVERSATIONS) return;
+    removeExpiredConversations();
+    if (conversations.size() < MAX_CONVERSATIONS) return;
+    conversations.entrySet().stream()
+        .min(java.util.Comparator.comparingLong(entry -> entry.getValue().lastAccessMillis))
+        .ifPresent(entry -> conversations.remove(entry.getKey(), entry.getValue()));
   }
 
   private String questionWithHistory(Conversation conversation, String question) {
     if (conversation.turns.isEmpty()) return question;
-    StringBuilder history = new StringBuilder("[이전 대화]\n");
-    for (Turn turn : conversation.turns) {
-      history.append("질문: ").append(turn.question()).append('\n');
-      history.append("AI 답변: ").append(turn.answer()).append('\n');
+
+    String currentQuestion = "\n[현재 질문]\n" + question;
+    int available =
+        MAX_QUESTION_LENGTH - currentQuestion.length() - "[이전 대화]\n".length();
+    if (available <= 0) return question;
+
+    Deque<String> selectedTurns = new ArrayDeque<>();
+    int selectedLength = 0;
+    var iterator = conversation.turns.descendingIterator();
+    while (iterator.hasNext()) {
+      Turn turn = iterator.next();
+      String block = "질문: " + turn.question() + '\n' + "AI 답변: " + turn.answer() + '\n';
+      if (selectedLength + block.length() > available) break;
+      selectedTurns.addFirst(block);
+      selectedLength += block.length();
     }
-    int available = MAX_QUESTION_LENGTH - question.length() - "\n[현재 질문]\n".length();
-    if (available > 0 && history.length() > available) {
-      history = new StringBuilder(history.substring(history.length() - available));
-    }
-    if (available <= 0) history.setLength(0);
-    history.append("\n[현재 질문]\n").append(question);
-    return history.toString();
+    if (selectedTurns.isEmpty()) return question;
+
+    StringBuilder prompt = new StringBuilder("[이전 대화]\n");
+    selectedTurns.forEach(prompt::append);
+    return prompt.append(currentQuestion).toString();
   }
 
   private String format(List<StoreInfo> items) {
@@ -96,9 +128,16 @@ public class KnowledgeService {
 
   private static final class Conversation {
     private final Deque<Turn> turns = new ArrayDeque<>();
+    private volatile long lastAccessMillis = System.currentTimeMillis();
+
+    private void touch() {
+      lastAccessMillis = System.currentTimeMillis();
+    }
 
     private void add(String question, String answer) {
       turns.addLast(new Turn(question, answer));
+      while (turns.size() > MAX_TURNS_PER_CONVERSATION) turns.removeFirst();
+      touch();
     }
   }
 

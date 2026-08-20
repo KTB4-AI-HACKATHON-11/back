@@ -1,165 +1,172 @@
 package com.ktb.hackathon.team11.attempt;
 
-import com.ktb.hackathon.team11.ai.*;
-import com.ktb.hackathon.team11.assignment.*;
-import com.ktb.hackathon.team11.global.exception.*;
+import com.ktb.hackathon.team11.ai.AiTaskClient;
+import com.ktb.hackathon.team11.ai.PhotoCheckCommand;
+import com.ktb.hackathon.team11.ai.PhotoCheckResult;
+import com.ktb.hackathon.team11.ai.PhotoUnavailableException;
+import com.ktb.hackathon.team11.assignment.AssignmentService;
+import com.ktb.hackathon.team11.assignment.AssignmentStatus;
+import com.ktb.hackathon.team11.global.exception.BusinessException;
+import com.ktb.hackathon.team11.global.exception.ErrorCode;
 import com.ktb.hackathon.team11.group.GroupService;
-import com.ktb.hackathon.team11.member.*;
-import com.ktb.hackathon.team11.notification.CompletionNotificationService;
-import com.ktb.hackathon.team11.storage.*;
+import com.ktb.hackathon.team11.storage.FileStorage;
+import com.ktb.hackathon.team11.storage.PhotoInspector;
+import com.ktb.hackathon.team11.storage.StoredFile;
+import java.time.Duration;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
-
-import java.time.*;
-import java.util.*;
 
 @Service
 @RequiredArgsConstructor
-@Transactional(readOnly = true)
 public class TaskAttemptService {
-    private final TaskAttemptRepository attempts;
-    private final TaskPhotoRepository photos;
-    private final AssignmentService assignmentService;
-    private final MemberService members;
-    private final GroupService groups;
-    private final PhotoInspector inspector;
-    private final FileStorage storage;
-    private final AiTaskClient ai;
-    private final CompletionNotificationService completionNotifications;
-    private final Clock clock;
-    @Value("${storage.presigned-url-minutes:5}") private long urlMinutes;
+  private final TaskAttemptRepository attempts;
+  private final AssignmentService assignments;
+  private final GroupService groups;
+  private final PhotoInspector inspector;
+  private final FileStorage storage;
+  private final AiTaskClient ai;
+  private final TaskAttemptTransactionService transactions;
 
-    @Transactional
-    public Result submit(long assignmentId, long workerId, MultipartFile file) {
-        Member worker = members.requireMember(workerId);
-        TaskAssignment assignment = assignmentService.requireForUpdate(assignmentId);
-        long groupId = assignment.getSchedule().getTaskTemplate().getGroup().getId();
-        if (groups.requireMember(groupId, workerId).getGroupRole() != MemberRole.WORKER)
-            throw new BusinessException(ErrorCode.WORKER_NOT_IN_GROUP);
-        if (assignment.getAssignee() != null && !assignment.getAssignee().getId().equals(workerId)) throw new BusinessException(ErrorCode.GROUP_ACCESS_DENIED);
-        if (assignment.getTaskItemTemplate().getCompletionType() != CompletionType.PHOTO) throw new BusinessException(ErrorCode.INVALID_COMPLETION_TYPE);
-        LocalDateTime now = LocalDateTime.now(clock);
-        assignment.requirePhotoSubmissionAvailable(now);
-        PhotoInspector.InspectedPhoto photo = inspector.inspect(file);
-        if (photos.existsByGroupIdAndSha256(groupId, photo.sha256())) throw new BusinessException(ErrorCode.DUPLICATE_PHOTO);
-        int number = (int) attempts.countByAssignmentId(assignmentId) + 1;
-        TaskAttempt attempt = attempts.save(new TaskAttempt(assignment, worker, number, now));
-        String key = "groups/" + groupId + "/assignments/" + assignmentId + "/attempts/" + UUID.randomUUID() + "." + photo.extension();
-        List<String> rollbackKeys = new ArrayList<>();
-        rollbackKeys.add(key);
-        registerRollbackCleanup(rollbackKeys);
-        StoredFile stored = storage.store(key, photo.bytes(), photo.mimeType());
-        photos.save(new TaskPhoto(attempt, assignment.getSchedule().getTaskTemplate().getGroup(), key, photo.mimeType(), photo.sizeBytes(), photo.sha256()));
-        assignment.verifying();
-        evaluate(assignment, attempt, photo.mimeType(), photo.sizeBytes(), photo.sha256(), key, stored.url());
-        return Result.from(attempt);
+  @Value("${storage.presigned-url-minutes:5}") private long urlMinutes;
+
+  public Result submit(long assignmentId, long workerId, MultipartFile file) {
+    PhotoInspector.InspectedPhoto photo = inspector.inspect(file);
+    TaskAttemptTransactionService.AttemptSnapshot snapshot =
+        transactions.reserve(assignmentId, workerId, photo);
+
+    StoredFile stored;
+    try {
+      stored = storage.store(snapshot.objectKey(), photo.bytes(), photo.mimeType());
+    } catch (RuntimeException exception) {
+      storage.delete(snapshot.objectKey());
+      transactions.cancelReservation(snapshot.attemptId(), snapshot.previousStatus());
+      throw exception;
     }
 
-    private void evaluate(TaskAssignment assignment, TaskAttempt attempt, String mime, long size, String sha, String objectKey, String url) {
-        try {
-            var item = assignment.getTaskItemTemplate();
-            String referenceUrl = item.hasReferenceImage()
-                    ? storage.createReadUrl(item.getReferenceImageKey(), Duration.ofMinutes(urlMinutes))
-                    : null;
-            PhotoCheckResult result;
-            try {
-                result = check(assignment, mime, size, sha, url, referenceUrl);
-            } catch (PhotoUnavailableException exception) {
-                if (exception.isReferencePhoto()) {
-                    if (!item.hasReferenceImage()) throw new BusinessException(ErrorCode.AI_UNAVAILABLE);
-                    referenceUrl = storage.createReadUrl(
-                            item.getReferenceImageKey(), Duration.ofMinutes(urlMinutes));
-                } else {
-                    url = storage.createReadUrl(objectKey, Duration.ofMinutes(urlMinutes));
-                }
-                result = check(assignment, mime, size, sha, url, referenceUrl);
-            }
-            if (result.status() == PhotoCheckStatus.PASS) {
-                attempt.pass(result.reason());
-                assignment.pass(LocalDateTime.now(clock));
-                completionNotifications.afterStateChange(assignment);
-            } else {
-                attempt.retake(result.reason(), result.fix());
-                assignment.retake();
-            }
-        } catch (BusinessException exception) {
-            if (exception.getErrorCode() != ErrorCode.AI_UNAVAILABLE && exception.getErrorCode() != ErrorCode.PHOTO_UNAVAILABLE) throw exception;
-            attempt.delayed();
-            assignment.delayed();
+    try {
+      transactions.attachPhoto(snapshot);
+    } catch (RuntimeException exception) {
+      storage.delete(snapshot.objectKey());
+      transactions.cancelReservation(snapshot.attemptId(), snapshot.previousStatus());
+      if (exception instanceof DataIntegrityViolationException)
+        throw new BusinessException(ErrorCode.DUPLICATE_PHOTO);
+      throw exception;
+    }
+
+    return Result.from(evaluate(snapshot, stored.url()));
+  }
+
+  public Result retry(long attemptId, long managerId) {
+    TaskAttemptTransactionService.AttemptSnapshot snapshot =
+        transactions.prepareRetry(attemptId, managerId);
+    return Result.from(evaluate(snapshot, null));
+  }
+
+  private TaskAttemptTransactionService.AttemptState evaluate(
+      TaskAttemptTransactionService.AttemptSnapshot snapshot, String submittedUrl) {
+    try {
+      if (submittedUrl == null)
+        submittedUrl =
+            storage.createReadUrl(snapshot.objectKey(), Duration.ofMinutes(urlMinutes));
+      String referenceUrl =
+          snapshot.hasReferenceImage()
+              ? storage.createReadUrl(
+                  snapshot.referenceImageKey(), Duration.ofMinutes(urlMinutes))
+              : null;
+      PhotoCheckResult result;
+      try {
+        result = check(snapshot, submittedUrl, referenceUrl);
+      } catch (PhotoUnavailableException exception) {
+        if (exception.isReferencePhoto()) {
+          if (!snapshot.hasReferenceImage())
+            throw new BusinessException(ErrorCode.AI_UNAVAILABLE);
+          referenceUrl =
+              storage.createReadUrl(
+                  snapshot.referenceImageKey(), Duration.ofMinutes(urlMinutes));
+        } else {
+          submittedUrl =
+              storage.createReadUrl(snapshot.objectKey(), Duration.ofMinutes(urlMinutes));
         }
+        result = check(snapshot, submittedUrl, referenceUrl);
+      }
+      return transactions.finalizeResult(snapshot.attemptId(), result);
+    } catch (BusinessException exception) {
+      if (exception.getErrorCode() == ErrorCode.AI_UNAVAILABLE
+          || exception.getErrorCode() == ErrorCode.PHOTO_UNAVAILABLE) {
+        return transactions.delay(snapshot.attemptId());
+      }
+      transactions.delay(snapshot.attemptId());
+      throw exception;
+    } catch (RuntimeException exception) {
+      transactions.delay(snapshot.attemptId());
+      throw exception;
+    }
+  }
+
+  private PhotoCheckResult check(
+      TaskAttemptTransactionService.AttemptSnapshot snapshot,
+      String submittedUrl,
+      String referenceUrl) {
+    PhotoCheckCommand.PhotoResource submittedPhoto =
+        new PhotoCheckCommand.PhotoResource(
+            snapshot.mimeType(), snapshot.sizeBytes(), snapshot.sha256(), submittedUrl);
+    PhotoCheckCommand.PhotoResource referencePhoto =
+        snapshot.hasReferenceImage()
+            ? new PhotoCheckCommand.PhotoResource(
+                snapshot.referenceImageMimeType(),
+                snapshot.referenceImageSizeBytes(),
+                snapshot.referenceImageSha256(),
+                referenceUrl)
+            : null;
+    return ai.checkPhoto(
+        new PhotoCheckCommand(
+            snapshot.title(),
+            snapshot.instruction(),
+            snapshot.rule(),
+            submittedPhoto,
+            referencePhoto));
+  }
+
+  @Transactional(readOnly = true)
+  public List<Result> history(long assignmentId, long memberId) {
+    var assignment = assignments.require(assignmentId);
+    groups.requireMember(
+        assignment.getSchedule().getTaskTemplate().getGroup().getId(), memberId);
+    return attempts.findAllByAssignmentIdOrderByAttemptNumber(assignmentId).stream()
+        .map(Result::from)
+        .toList();
+  }
+
+  public record Result(
+      Long attemptId,
+      int attemptNumber,
+      AttemptStatus status,
+      AssignmentStatus assignmentStatus,
+      String reason,
+      String fix) {
+    static Result from(TaskAttempt attempt) {
+      return new Result(
+          attempt.getId(),
+          attempt.getAttemptNumber(),
+          attempt.getStatus(),
+          attempt.getAssignment().getStatus(),
+          attempt.getReason(),
+          attempt.getFixMessage());
     }
 
-    private PhotoCheckResult check(TaskAssignment assignment, String mime, long size, String sha, String url, String referenceUrl) {
-        var item = assignment.getTaskItemTemplate();
-        PhotoCheckCommand.PhotoResource submittedPhoto = new PhotoCheckCommand.PhotoResource(mime, size, sha, url);
-        PhotoCheckCommand.PhotoResource referencePhoto = item.hasReferenceImage()
-                ? new PhotoCheckCommand.PhotoResource(
-                        item.getReferenceImageMimeType(),
-                        item.getReferenceImageSizeBytes(),
-                        item.getReferenceImageSha256(),
-                        referenceUrl)
-                : null;
-        return ai.checkPhoto(new PhotoCheckCommand(
-                item.getTitle(),
-                item.getInstruction(),
-                item.getVerificationRule(),
-                submittedPhoto,
-                referencePhoto));
+    static Result from(TaskAttemptTransactionService.AttemptState state) {
+      return new Result(
+          state.attemptId(),
+          state.attemptNumber(),
+          state.status(),
+          state.assignmentStatus(),
+          state.reason(),
+          state.fix());
     }
-
-    public List<Result> history(long assignmentId, long memberId) {
-        TaskAssignment assignment = assignmentService.require(assignmentId);
-        groups.requireMember(assignment.getSchedule().getTaskTemplate().getGroup().getId(), memberId);
-        return attempts.findAllByAssignmentIdOrderByAttemptNumber(assignmentId).stream()
-                .map(Result::from)
-                .toList();
-    }
-
-    @Transactional
-    public Result retry(long attemptId, long managerId) {
-        TaskAttempt attempt = attempts.findById(attemptId).orElseThrow(() -> new BusinessException(ErrorCode.ATTEMPT_NOT_FOUND));
-        TaskAssignment assignment = assignmentService.requireForUpdate(attempt.getAssignment().getId());
-        groups.requireManager(assignment.getSchedule().getTaskTemplate().getGroup().getId(), managerId);
-        if (attempt.getStatus() != AttemptStatus.DELAYED || assignment.getStatus() != AssignmentStatus.VERIFICATION_DELAYED) throw new BusinessException(ErrorCode.TASK_NOT_AVAILABLE);
-        TaskPhoto photo = photos.findByAttemptId(attemptId).orElseThrow(() -> new BusinessException(ErrorCode.INVALID_PHOTO));
-        attempt.verifying();
-        assignment.verifying();
-        String url = storage.createReadUrl(photo.getObjectKey(), Duration.ofMinutes(urlMinutes));
-        evaluate(assignment, attempt, photo.getMimeType(), photo.getSizeBytes(), photo.getSha256(), photo.getObjectKey(), url);
-        return Result.from(attempt);
-    }
-
-    private void registerRollbackCleanup(List<String> objectKeys) {
-        if (!TransactionSynchronizationManager.isSynchronizationActive()) return;
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCompletion(int status) {
-                if (status == STATUS_ROLLED_BACK) objectKeys.forEach(storage::delete);
-            }
-        });
-    }
-
-    public record Result(
-            Long attemptId,
-            int attemptNumber,
-            AttemptStatus status,
-            AssignmentStatus assignmentStatus,
-            String reason,
-            String fix
-    ) {
-        static Result from(TaskAttempt attempt) {
-            return new Result(
-                    attempt.getId(),
-                    attempt.getAttemptNumber(),
-                    attempt.getStatus(),
-                    attempt.getAssignment().getStatus(),
-                    attempt.getReason(),
-                    attempt.getFixMessage());
-        }
-    }
+  }
 }

@@ -1,6 +1,7 @@
 package com.ktb.hackathon.team11.assignment;
 
 import com.ktb.hackathon.team11.ai.CompletionType;
+import com.ktb.hackathon.team11.auth.SessionService;
 import com.ktb.hackathon.team11.global.response.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -19,6 +20,7 @@ import org.springframework.web.bind.annotation.*;
 @Tag(name = "5. 업무 배정", description = "날짜별 업무 조회와 CHECK 방식 완료 API")
 public class AssignmentController {
   private final AssignmentService service;
+  private final SessionService sessions;
 
   @Operation(
       summary = "알바생 날짜별 업무 조회",
@@ -33,8 +35,10 @@ public class AssignmentController {
       })
   @GetMapping("/workers/{workerId}/assignments")
   ApiResponse<List<Response>> worker(
+      @CookieValue(name = SessionService.COOKIE_NAME, required = false) String token,
       @Parameter(description = "WORKER 회원 ID", example = "2") @PathVariable long workerId,
       @Parameter(description = "조회할 업무 기준일", example = "2026-08-20") @RequestParam LocalDate date) {
+    sessions.require(token, workerId);
     return ApiResponse.of(
         "ASSIGNMENTS_FOUND", service.worker(workerId, date).stream().map(Response::from).toList());
   }
@@ -42,7 +46,11 @@ public class AssignmentController {
   @Operation(summary = "관리자 그룹 업무 현황", description = "MANAGER가 지정 날짜의 그룹 전체 업무와 수행 상태를 조회합니다.")
   @GetMapping("/groups/{groupId}/assignments")
   ApiResponse<List<Response>> group(
-      @PathVariable long groupId, @RequestParam long managerId, @RequestParam LocalDate date) {
+      @CookieValue(name = SessionService.COOKIE_NAME, required = false) String token,
+      @PathVariable long groupId,
+      @RequestParam long managerId,
+      @RequestParam LocalDate date) {
+    sessions.require(token, managerId);
     return ApiResponse.of(
         "ASSIGNMENTS_FOUND",
         service.group(groupId, managerId, date).stream().map(Response::from).toList());
@@ -52,8 +60,12 @@ public class AssignmentController {
       summary = "배정 업무 상세 조회",
       description = "업무 제목, 수행 안내, 완료 방식, 담당자, 수행 가능 시간과 현재 상태를 조회합니다.")
   @GetMapping("/assignments/{id}")
-  ApiResponse<Response> detail(@PathVariable long id, @RequestParam long memberId) {
-    return ApiResponse.of("ASSIGNMENT_FOUND", Response.from(service.require(id)));
+  ApiResponse<Response> detail(
+      @CookieValue(name = SessionService.COOKIE_NAME, required = false) String token,
+      @PathVariable long id,
+      @RequestParam long memberId) {
+    sessions.require(token, memberId);
+    return ApiResponse.of("ASSIGNMENT_FOUND", Response.from(service.detail(id, memberId)));
   }
 
   @Operation(
@@ -71,7 +83,11 @@ public class AssignmentController {
             description = "수행 가능 시간이 아니거나 이미 완료된 업무")
       })
   @PostMapping("/assignments/{id}/check")
-  ApiResponse<Response> check(@PathVariable long id, @Valid @RequestBody CheckRequest request) {
+  ApiResponse<Response> check(
+      @CookieValue(name = SessionService.COOKIE_NAME, required = false) String token,
+      @PathVariable long id,
+      @Valid @RequestBody CheckRequest request) {
+    sessions.require(token, request.workerId());
     return ApiResponse.of(
         "ASSIGNMENT_COMPLETED", Response.from(service.check(id, request.workerId())));
   }
@@ -93,6 +109,7 @@ public class AssignmentController {
                 "PENDING",
                 "VERIFYING",
                 "RETAKE_REQUIRED",
+                "MANAGER_REVIEW_REQUESTED",
                 "COMPLETED",
                 "VERIFICATION_DELAYED",
                 "EXPIRED"
