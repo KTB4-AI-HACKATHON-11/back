@@ -110,4 +110,11 @@ public class TaskAssignment extends BaseEntity {
   public void delayed() {
     status = AssignmentStatus.VERIFICATION_DELAYED;
   }
+
+  public void updateSchedule(Member worker, LocalDateTime newDueAt) {
+    if (!newDueAt.isAfter(availableFrom))
+      throw new BusinessException(ErrorCode.INVALID_DUE_AT);
+    assignee = worker;
+    dueAt = newDueAt;
+  }
 }

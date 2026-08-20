@@ -2,6 +2,7 @@ package com.ktb.hackathon.team11.schedule;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface TaskScheduleRepository extends JpaRepository<TaskSchedule, Long> {
@@ -9,4 +10,6 @@ public interface TaskScheduleRepository extends JpaRepository<TaskSchedule, Long
       LocalDate d1, LocalDate d2);
 
   List<TaskSchedule> findAllByActiveTrueAndStartDateLessThanEqualAndEndDateIsNull(LocalDate d);
+
+  Optional<TaskSchedule> findFirstByTaskTemplateIdOrderByIdDesc(Long taskTemplateId);
 }

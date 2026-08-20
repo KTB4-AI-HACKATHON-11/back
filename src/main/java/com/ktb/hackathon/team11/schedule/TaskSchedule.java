@@ -113,5 +113,11 @@ public class TaskSchedule extends BaseEntity {
         start.minusMinutes(earlyAllowanceMinutes), end.plusMinutes(lateAllowanceMinutes));
   }
 
+  public void updateAssignee(Member worker, LocalDateTime newDueAt) {
+    assignee = worker;
+    endDate = newDueAt.toLocalDate();
+    endTime = newDueAt.toLocalTime();
+  }
+
   public record Window(LocalDateTime availableFrom, LocalDateTime dueAt) {}
 }
