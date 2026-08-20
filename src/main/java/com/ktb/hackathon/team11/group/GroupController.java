@@ -100,14 +100,14 @@ public class GroupController {
 
   @Operation(
       summary = "그룹 구성원 조회",
-      description = "그룹 관리자만 그룹에 가입한 관리자와 알바생 목록을 조회할 수 있습니다.",
+      description = "그룹 구성원이 그룹에 가입한 관리자와 알바생 목록을 조회할 수 있습니다.",
       responses = {
         @io.swagger.v3.oas.annotations.responses.ApiResponse(
             responseCode = "200",
             description = "구성원 조회 성공"),
         @io.swagger.v3.oas.annotations.responses.ApiResponse(
             responseCode = "403",
-            description = "그룹 관리자 권한 없음")
+            description = "그룹 구성원 권한 없음")
       })
   @GetMapping("/groups/{groupId}/members")
   ApiResponse<List<GroupMemberResponse>> members(
