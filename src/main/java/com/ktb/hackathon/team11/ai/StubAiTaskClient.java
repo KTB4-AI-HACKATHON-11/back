@@ -16,4 +16,8 @@ public class StubAiTaskClient implements AiTaskClient {
         if(command.photo().url().toLowerCase().contains("retake")) return new PhotoCheckResult(PhotoCheckStatus.RETAKE,"사진에서 기준을 확인하기 어렵습니다.","기준 대상이 선명하게 보이도록 다시 촬영해 주세요.");
         return new PhotoCheckResult(PhotoCheckStatus.PASS,"사진에서 업무 기준을 충족한 것을 확인했습니다.",null);
     }
+
+    public String answerKnowledge(String information, String question) {
+        return "등록된 매장 정보를 기준으로 확인한 답변입니다.";
+    }
 }
