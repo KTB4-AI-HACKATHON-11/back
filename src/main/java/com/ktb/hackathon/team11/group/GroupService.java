@@ -46,7 +46,7 @@ public class GroupService {
     WorkGroup group = requireGroup(groupId);
     if (memberships.existsByGroupIdAndMemberId(groupId, memberId))
       throw new BusinessException(ErrorCode.ALREADY_GROUP_MEMBER);
-    memberships.save(new GroupMember(group, member));
+    memberships.save(new GroupMember(group, member, MemberRole.WORKER));
     return group;
   }
 

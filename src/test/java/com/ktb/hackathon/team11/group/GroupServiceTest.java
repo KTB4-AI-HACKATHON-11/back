@@ -78,7 +78,9 @@ class GroupServiceTest {
     WorkGroup joined = service.join(2L, 10L);
 
     assertThat(joined).isSameAs(group);
-    verify(memberships).save(any(GroupMember.class));
+    ArgumentCaptor<GroupMember> membership = ArgumentCaptor.forClass(GroupMember.class);
+    verify(memberships).save(membership.capture());
+    assertThat(membership.getValue().getGroupRole()).isEqualTo(MemberRole.WORKER);
   }
 
   @Test

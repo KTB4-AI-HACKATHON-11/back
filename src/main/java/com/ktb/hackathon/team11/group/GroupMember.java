@@ -29,8 +29,12 @@ public class GroupMember extends BaseEntity {
   private MemberRole groupRole;
 
   public GroupMember(WorkGroup group, Member member) {
+    this(group, member, member.getRole());
+  }
+
+  public GroupMember(WorkGroup group, Member member, MemberRole groupRole) {
     this.group = group;
     this.member = member;
-    this.groupRole = member.getRole();
+    this.groupRole = groupRole;
   }
 }
