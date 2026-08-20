@@ -21,6 +21,7 @@ import org.springframework.web.multipart.MultipartFile;
 @Tag(name = "3. 업무 템플릿", description = "AI 업무 초안과 재사용 가능한 업무 템플릿 관리 API")
 public class TaskTemplateController {
   private final TaskTemplateService service;
+  private final TaskRegistrationService registrationService;
 
   @Operation(
       summary = "AI 체크리스트 생성",
@@ -44,12 +45,41 @@ public class TaskTemplateController {
     return ApiResponse.of(
         "TASKS_GENERATED",
         service.generateTasks(
+            groupId, request.managerId(), request.title(), request.message()));
+  }
+
+  @Operation(
+      summary = "태스크 최종 등록",
+      description =
+          "그룹 WORKER와 마감 일시를 지정하고 체크리스트를 저장합니다. PHOTO 항목에는 기준 사진이 반드시 필요합니다.")
+  @PostMapping(value = "/groups/{groupId}/tasks", consumes = "multipart/form-data")
+  @ResponseStatus(HttpStatus.CREATED)
+  ApiResponse<TaskRegistrationService.TaskCreatedResponse> createTask(
+      @PathVariable long groupId,
+      @Valid @RequestPart("request") CreateTaskRequest request,
+      @RequestPart(value = "referencePhotos", required = false)
+          List<MultipartFile> referencePhotos) {
+    return ApiResponse.of(
+        "TASK_CREATED",
+        registrationService.create(
             groupId,
             request.managerId(),
             request.title(),
             request.message(),
-            request.assigneeName(),
-            request.dueAt()));
+            request.workerId(),
+            request.dueAt(),
+            request.checklists().stream()
+                .map(
+                    checklist ->
+                        new TaskRegistrationService.ChecklistCommand(
+                            checklist.sequence(),
+                            checklist.title(),
+                            checklist.instruction(),
+                            checklist.completionType(),
+                            checklist.rule(),
+                            checklist.referencePhotoIndex()))
+                .toList(),
+            referencePhotos == null ? List.of() : referencePhotos));
   }
 
   @Operation(
@@ -149,11 +179,25 @@ public class TaskTemplateController {
               maxLength = 2000)
           @NotBlank
           @Size(max = 2000)
-          String message,
-      @Schema(description = "회원과 연결하지 않는 담당자 표시 이름", example = "서연") @NotBlank @Size(max = 30)
-          String assigneeName,
-      @Schema(description = "마감 일시", example = "2026-08-20T09:30:00+09:00") @NotNull @Future
-          OffsetDateTime dueAt) {}
+          String message) {}
+
+  @Schema(description = "태스크 최종 등록 요청")
+  public record CreateTaskRequest(
+      @NotNull Long managerId,
+      @NotBlank @Size(max = 80) String title,
+      @NotBlank @Size(max = 2000) String message,
+      @NotNull Long workerId,
+      @NotNull @Future OffsetDateTime dueAt,
+      @NotEmpty @Size(max = 20) List<@Valid ChecklistRequest> checklists) {}
+
+  @Schema(description = "최종 등록할 체크리스트")
+  public record ChecklistRequest(
+      @Min(1) int sequence,
+      @NotBlank @Size(max = 80) String title,
+      @NotBlank @Size(max = 500) String instruction,
+      @NotNull CompletionType completionType,
+      @Size(max = 1000) String rule,
+      @PositiveOrZero Integer referencePhotoIndex) {}
 
   @Schema(description = "하위 업무 등록 정보")
   public record ItemRequest(
