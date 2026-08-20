@@ -1,12 +1,14 @@
 package com.ktb.hackathon.team11.group;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.ktb.hackathon.team11.global.response.ApiResponse;
 import com.ktb.hackathon.team11.member.Member;
 import com.ktb.hackathon.team11.member.MemberRole;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -51,5 +53,24 @@ class GroupControllerTest {
 
     assertThat(response.getCode()).isEqualTo("GROUP_JOINED");
     verify(service).join(2L, 10L);
+  }
+
+  @Test
+  void returnsGroupMembersWithNicknameAndRole() {
+    Member manager = new Member("점장", MemberRole.MANAGER);
+    Member worker = new Member("서연", MemberRole.WORKER);
+    WorkGroup group = new WorkGroup("성수점", null, "000001", manager);
+    when(service.membersOf(1L, 1L))
+        .thenReturn(List.of(new GroupMember(group, manager), new GroupMember(group, worker)));
+
+    ApiResponse<List<GroupController.GroupMemberResponse>> response = controller.members(1L, 1L);
+
+    assertThat(response.getCode()).isEqualTo("GROUP_MEMBERS_FOUND");
+    assertThat(response.getData())
+        .extracting(
+            GroupController.GroupMemberResponse::nickname,
+            GroupController.GroupMemberResponse::role)
+        .containsExactly(
+            tuple("점장", MemberRole.MANAGER), tuple("서연", MemberRole.WORKER));
   }
 }
