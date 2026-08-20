@@ -26,13 +26,12 @@ public class GroupService {
   @Transactional
   public WorkGroup create(long managerId, String name, String description) {
     Member manager = members.requireRole(managerId, MemberRole.MANAGER);
-    WorkGroup group =
-        groups.save(new WorkGroup(name, description, createLegacyCode(), manager));
+    WorkGroup group = groups.save(new WorkGroup(name, description, createInviteCode(), manager));
     memberships.save(new GroupMember(group, manager));
     return group;
   }
 
-  private String createLegacyCode() {
+  private String createInviteCode() {
     String code;
     do {
       code = String.format("%06d", random.nextInt(1_000_000));
@@ -41,13 +40,34 @@ public class GroupService {
   }
 
   @Transactional
-  public WorkGroup join(long memberId, long groupId) {
+  public WorkGroup join(long memberId, String inviteCode, Long legacyGroupId) {
     Member member = members.requireMember(memberId);
-    WorkGroup group = requireGroup(groupId);
-    if (memberships.existsByGroupIdAndMemberId(groupId, memberId))
+    WorkGroup group = requireJoinTarget(inviteCode, legacyGroupId);
+    if (memberships.existsByGroupIdAndMemberId(group.getId(), memberId))
       throw new BusinessException(ErrorCode.ALREADY_GROUP_MEMBER);
     memberships.save(new GroupMember(group, member, MemberRole.WORKER));
     return group;
+  }
+
+  private WorkGroup requireJoinTarget(String inviteCode, Long legacyGroupId) {
+    if (inviteCode != null && !inviteCode.isBlank()) {
+      WorkGroup byInviteCode = groups.findByInviteCode(inviteCode).orElse(null);
+      if (byInviteCode != null) return byInviteCode;
+
+      // 기존 화면은 내부 PK를 000001처럼 채워 초대 번호로 공유했다. 배포 전 공유된 번호만
+      // 한시적으로 살리되, 새로 발급된 실제 초대 코드를 항상 먼저 조회한다.
+      if (inviteCode.startsWith("0")) {
+        try {
+          WorkGroup legacyGroup = groups.findById(Long.parseLong(inviteCode)).orElse(null);
+          if (legacyGroup != null) return legacyGroup;
+        } catch (NumberFormatException ignored) {
+          // @Pattern 검증을 우회해 직접 호출된 경우에도 아래의 정상 도메인 오류로 처리한다.
+        }
+      }
+      throw new BusinessException(ErrorCode.INVITE_CODE_NOT_FOUND);
+    }
+    if (legacyGroupId != null) return requireGroup(legacyGroupId);
+    throw new BusinessException(ErrorCode.GROUP_NOT_FOUND);
   }
 
   public WorkGroup requireGroup(long id) {

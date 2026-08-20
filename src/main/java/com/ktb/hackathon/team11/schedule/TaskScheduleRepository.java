@@ -20,4 +20,6 @@ public interface TaskScheduleRepository extends JpaRepository<TaskSchedule, Long
           long groupId, LocalDate date);
 
   Optional<TaskSchedule> findFirstByTaskTemplateIdOrderByIdDesc(Long taskTemplateId);
+
+  List<TaskSchedule> findAllByTaskTemplateId(Long taskTemplateId);
 }

@@ -50,6 +50,18 @@ public class TaskTemplate extends BaseEntity {
     if (a != null) active = a;
   }
 
+  public void updateByAgent(
+      String newTitle,
+      String newSourceMessage,
+      Boolean newNotifyOnCompletion,
+      Boolean newActive) {
+    if (newTitle != null && !newTitle.isBlank()) title = newTitle.strip();
+    if (newSourceMessage != null && !newSourceMessage.isBlank())
+      sourceMessage = newSourceMessage.strip();
+    if (newNotifyOnCompletion != null) notifyOnCompletion = newNotifyOnCompletion;
+    if (newActive != null) active = newActive;
+  }
+
   public void deactivate() {
     active = false;
   }

@@ -24,6 +24,7 @@ public enum ErrorCode {
   SESSION_MEMBER_MISMATCH(HttpStatus.FORBIDDEN, "로그인한 회원과 요청 회원이 일치하지 않습니다."),
   MEMBER_NOT_FOUND(HttpStatus.NOT_FOUND, "회원을 찾을 수 없습니다."),
   GROUP_NOT_FOUND(HttpStatus.NOT_FOUND, "그룹을 찾을 수 없습니다."),
+  INVITE_CODE_NOT_FOUND(HttpStatus.NOT_FOUND, "초대 코드와 일치하는 그룹을 찾을 수 없습니다."),
   STORE_INFO_NOT_FOUND(HttpStatus.NOT_FOUND, "매장 정보를 찾을 수 없습니다."),
   TEMPLATE_NOT_FOUND(HttpStatus.NOT_FOUND, "업무 템플릿을 찾을 수 없습니다."),
   TASK_NOT_FOUND(HttpStatus.NOT_FOUND, "태스크를 찾을 수 없습니다."),
@@ -38,6 +39,10 @@ public enum ErrorCode {
   ASSIGNMENT_ALREADY_COMPLETED(HttpStatus.CONFLICT, "이미 완료된 업무입니다."),
   TASK_NOT_AVAILABLE(HttpStatus.CONFLICT, "현재 수행할 수 없는 업무입니다."),
   TASK_ALREADY_STARTED(HttpStatus.CONFLICT, "이미 수행이 시작된 태스크는 수정할 수 없습니다."),
+  RECURRING_TASK_SCHEDULE_UPDATE_UNSUPPORTED(
+      HttpStatus.CONFLICT, "반복 태스크의 담당자와 마감 일시는 에이전트에서 변경할 수 없습니다."),
+  STORE_INFO_REPLACEMENT_CONFLICT(
+      HttpStatus.CONFLICT, "매장 정보가 변경되었거나 기존 항목이 누락되어 교체하지 않았습니다."),
   MANAGER_REVIEW_NOT_AVAILABLE(HttpStatus.CONFLICT, "현재 매니저 확인을 요청할 수 없습니다."),
   MANAGER_REVIEW_ALREADY_RESOLVED(HttpStatus.CONFLICT, "이미 처리된 매니저 확인 요청입니다."),
   GROUP_ACCESS_DENIED(HttpStatus.FORBIDDEN, "그룹에 접근할 수 없습니다."),

@@ -101,6 +101,65 @@ public class TaskQueryService {
     return detail(template, key, runAssignments, canManage);
   }
 
+  /**
+   * 에이전트가 관련 실행 회차를 판단할 때 필요한 최소 상세만 반환한다.
+   * 사진 URL과 제출 이력은 만들지 않아 컨텍스트 조회가 S3 presign 작업을 유발하지 않는다.
+   */
+  public List<AgentTaskDetail> agentDetails(
+      long groupId, long requesterId, List<String> runIds) {
+    groups.requireMember(groupId, requesterId);
+    if (runIds == null || runIds.isEmpty()) return List.of();
+    if (runIds.size() > 5) throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
+
+    return runIds.stream()
+        .distinct()
+        .map(TaskRunId::parse)
+        .map(
+            runId -> {
+              List<TaskAssignment> runAssignments =
+                  assignments.findAllByScheduleIdAndScheduledDate(
+                      runId.scheduleId(), runId.scheduledDate());
+              if (runAssignments.isEmpty())
+                throw new BusinessException(ErrorCode.TASK_NOT_FOUND);
+              TaskTemplate template =
+                  runAssignments.getFirst().getSchedule().getTaskTemplate();
+              if (!template.getGroup().getId().equals(groupId))
+                throw new BusinessException(ErrorCode.GROUP_ACCESS_DENIED);
+              List<TaskAssignment> ordered =
+                  runAssignments.stream()
+                      .sorted(
+                          Comparator.comparing(
+                              item -> item.getTaskItemTemplate().getSequence()))
+                      .toList();
+              TaskSummary summary = summary(runId, template, ordered);
+              TaskAssignment primary = ordered.getFirst();
+              return new AgentTaskDetail(
+                  template.getId(),
+                  runId.value(),
+                  template.getTitle(),
+                  template.getSourceMessage(),
+                  primary.getAssignee() == null ? null : primary.getAssignee().getId(),
+                  primary.getAssignee() == null
+                      ? null
+                      : primary.getAssignee().getNickname(),
+                  toOffsetDateTime(primary.getDueAt()),
+                  summary.status(),
+                  template.isNotifyOnCompletion(),
+                  ordered.stream()
+                      .map(
+                          assignment ->
+                              new AgentChecklistDetail(
+                                  assignment.getId(),
+                                  assignment.getTaskItemTemplate().getTitle(),
+                                  assignment.getTaskItemTemplate().getInstruction(),
+                                  assignment.getTaskItemTemplate().getCompletionType(),
+                                  assignment.getTaskItemTemplate().getVerificationRule(),
+                                  performed(assignment)))
+                      .toList());
+            })
+        .toList();
+  }
+
   private TaskDetail detail(
       TaskTemplate template,
       TaskRunId runId,
@@ -176,6 +235,7 @@ public class TaskQueryService {
         itemCount,
         completed,
         progress(completed, itemCount),
+        template.isNotifyOnCompletion(),
         taskAssignments.stream()
             .anyMatch(a -> a.getTaskItemTemplate().getCompletionType() == CompletionType.PHOTO));
   }
@@ -236,6 +296,26 @@ public class TaskQueryService {
 
   public record TaskListResponse(int totalCount, List<TaskSummary> items) {}
 
+  public record AgentTaskDetail(
+      Long taskId,
+      String runId,
+      String title,
+      String sourceMessage,
+      Long workerId,
+      String workerNickname,
+      OffsetDateTime dueAt,
+      TaskStatus status,
+      boolean notifyOnCompletion,
+      List<AgentChecklistDetail> checklists) {}
+
+  public record AgentChecklistDetail(
+      Long checklistId,
+      String title,
+      String instruction,
+      CompletionType completionType,
+      String rule,
+      boolean performed) {}
+
   public record TaskSummary(
       Long taskId,
       String runId,
@@ -247,12 +327,13 @@ public class TaskQueryService {
       int itemCount,
       int completedItemCount,
       int progress,
+      boolean notifyOnCompletion,
       boolean hasPhotoVerification) {
     private TaskSummary(Long taskId, String runId, String title, Member worker,
         OffsetDateTime dueAt, TaskStatus status, int itemCount, int completedItemCount,
-        int progress, boolean hasPhotoVerification) {
+        int progress, boolean notifyOnCompletion, boolean hasPhotoVerification) {
       this(taskId, runId, title, worker == null ? null : worker.getId(), worker == null ? null : worker.getNickname(),
-          dueAt, status, itemCount, completedItemCount, progress, hasPhotoVerification);
+          dueAt, status, itemCount, completedItemCount, progress, notifyOnCompletion, hasPhotoVerification);
     }
   }
 

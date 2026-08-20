@@ -55,6 +55,80 @@ public class StoreInfoService {
     infos.delete(info);
   }
 
+  @Transactional
+  public List<Response> replaceAll(
+      long groupId,
+      long managerId,
+      List<ReplaceCommand> commands,
+      List<Long> removedStoreInfoIds) {
+    WorkGroup group = groups.requireGroup(groupId);
+    Member manager = manager(groups, groupId, managerId);
+    if (commands == null
+        || commands.size() > 100
+        || removedStoreInfoIds == null
+        || removedStoreInfoIds.size() > 100)
+      throw new BusinessException(ErrorCode.INVALID_STORE_INFO_INPUT);
+
+    List<StoreInfo> existing = infos.lockAllByGroupId(groupId);
+    Set<Long> currentIds =
+        existing.stream()
+            .map(StoreInfo::getId)
+            .collect(java.util.stream.Collectors.toSet());
+    List<Long> retainedIds =
+        commands.stream()
+            .filter(Objects::nonNull)
+            .map(ReplaceCommand::storeInfoId)
+            .filter(Objects::nonNull)
+            .toList();
+    Set<Long> retained = new HashSet<>(retainedIds);
+    Set<Long> removed = new HashSet<>(removedStoreInfoIds);
+    Set<Long> accountedFor = new HashSet<>(retained);
+    accountedFor.addAll(removed);
+    if (retained.size() != retainedIds.size()
+        || removed.size() != removedStoreInfoIds.size()
+        || !Collections.disjoint(retained, removed)
+        || !currentIds.equals(accountedFor)) {
+      throw new BusinessException(ErrorCode.STORE_INFO_REPLACEMENT_CONFLICT);
+    }
+
+    Map<Long, StoreInfo> existingById =
+        existing.stream()
+            .collect(java.util.stream.Collectors.toMap(StoreInfo::getId, info -> info));
+    List<StoreInfo> replacements = new ArrayList<>(commands.size());
+    for (ReplaceCommand command : commands) {
+      if (command == null)
+        throw new BusinessException(ErrorCode.INVALID_STORE_INFO_INPUT);
+      validateLength(command.title(), command.content());
+      StoreInfo replacement;
+      if (command.storeInfoId() == null) {
+        replacement =
+            new StoreInfo(
+                group,
+                manager,
+                parseCategory(command.category()),
+                command.title(),
+                command.content());
+      } else {
+        replacement = existingById.get(command.storeInfoId());
+        replacement.update(
+            parseCategory(command.category()), command.title(), command.content());
+      }
+      replacements.add(replacement);
+    }
+    replacements.sort(
+        Comparator.comparing(StoreInfo::getCategory)
+            .thenComparing(StoreInfo::getTitle));
+    if (format(replacements).length() > MAX_INFORMATION_LENGTH)
+      throw new BusinessException(ErrorCode.STORE_INFO_LIMIT_EXCEEDED);
+
+    List<StoreInfo> removedItems =
+        removedStoreInfoIds.stream().map(existingById::get).toList();
+    infos.deleteAllInBatch(removedItems);
+    List<StoreInfo> saved = infos.saveAll(replacements);
+    infos.flush();
+    return saved.stream().map(Response::from).toList();
+  }
+
   @Transactional(readOnly = true)
   public Answer ask(long groupId, long requesterId, String question) {
     groups.requireGroup(groupId);
@@ -116,5 +190,7 @@ public class StoreInfoService {
       return new Response(info.getId(), info.getCategory(), info.getTitle(), info.getContent(), info.getUpdatedAt().atOffset(ZoneOffset.ofHours(9)));
     }
   }
+  public record ReplaceCommand(
+      Long storeInfoId, String category, String title, String content) {}
   public record Answer(String answer) {}
 }
