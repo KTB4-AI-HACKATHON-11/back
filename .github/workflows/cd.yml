@@ -121,12 +121,14 @@ jobs:
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
           AWS_REGION: ${{ vars.AWS_REGION }}
           S3_BUCKET: ${{ vars.S3_BUCKET }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AI_BACKEND_BASE_URL: ${{ secrets.AI_BACKEND_BASE_URL }}
           AI_SERVICE_TOKEN: ${{ secrets.AI_SERVICE_TOKEN }}
         run: |
           set -euo pipefail
           ssh -i ~/.ssh/deploy_key ubuntu@"$APP_HOST" \
-            "IMAGE_REF='$IMAGE_REF' DB_HOST='$DB_HOST' DB_PORT='$DB_PORT' DB_NAME='$DB_NAME' DB_USERNAME='$DB_USERNAME' DB_PASSWORD='$DB_PASSWORD' AWS_REGION='$AWS_REGION' S3_BUCKET='$S3_BUCKET' AI_BACKEND_BASE_URL='$AI_BACKEND_BASE_URL' AI_SERVICE_TOKEN='$AI_SERVICE_TOKEN' bash -s" <<'REMOTE'
+            "IMAGE_REF='$IMAGE_REF' DB_HOST='$DB_HOST' DB_PORT='$DB_PORT' DB_NAME='$DB_NAME' DB_USERNAME='$DB_USERNAME' DB_PASSWORD='$DB_PASSWORD' AWS_REGION='$AWS_REGION' S3_BUCKET='$S3_BUCKET' AWS_ACCESS_KEY_ID='$AWS_ACCESS_KEY_ID' AWS_SECRET_ACCESS_KEY='$AWS_SECRET_ACCESS_KEY' AI_BACKEND_BASE_URL='$AI_BACKEND_BASE_URL' AI_SERVICE_TOKEN='$AI_SERVICE_TOKEN' bash -s" <<'REMOTE'
           set -euo pipefail
 
           mkdir -p ~/hackathon/backend
@@ -134,6 +136,14 @@ jobs:
           docker network inspect hackathon-net >/dev/null 2>&1 || docker network create hackathon-net
           docker pull "$IMAGE_REF"
           docker rm -f backend 2>/dev/null || true
+
+          AWS_DOCKER_ARGS=()
+          if [[ -n "${AWS_ACCESS_KEY_ID:-}" && -n "${AWS_SECRET_ACCESS_KEY:-}" ]]; then
+            AWS_DOCKER_ARGS+=(
+              -e "AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}"
+              -e "AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}"
+            )
+          fi
 
           docker run -d \
             --name backend \
@@ -146,6 +156,7 @@ jobs:
             -e DB_PASSWORD="${DB_PASSWORD}" \
             -e AWS_REGION="${AWS_REGION}" \
             -e S3_BUCKET="${S3_BUCKET}" \
+            "${AWS_DOCKER_ARGS[@]}" \
             -e AI_BACKEND_BASE_URL="${AI_BACKEND_BASE_URL}" \
             -e AI_SERVICE_TOKEN="${AI_SERVICE_TOKEN}" \
             "$IMAGE_REF"
