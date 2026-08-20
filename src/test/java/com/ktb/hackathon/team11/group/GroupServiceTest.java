@@ -11,6 +11,9 @@ import com.ktb.hackathon.team11.global.exception.ErrorCode;
 import com.ktb.hackathon.team11.member.Member;
 import com.ktb.hackathon.team11.member.MemberRole;
 import com.ktb.hackathon.team11.member.MemberService;
+import com.ktb.hackathon.team11.assignment.AssignmentStatus;
+import com.ktb.hackathon.team11.assignment.TaskAssignmentRepository;
+import com.ktb.hackathon.team11.task.TaskTemplateRepository;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
@@ -27,6 +30,8 @@ class GroupServiceTest {
   @Mock private WorkGroupRepository groups;
   @Mock private GroupMemberRepository memberships;
   @Mock private MemberService members;
+  @Mock private TaskTemplateRepository templates;
+  @Mock private TaskAssignmentRepository assignments;
   @InjectMocks private GroupService service;
 
   @Test
@@ -99,11 +104,21 @@ class GroupServiceTest {
         .thenReturn(Optional.of(new GroupMember(group, new Member("알바", MemberRole.WORKER))));
     when(groups.findById(10L)).thenReturn(Optional.of(group));
     when(memberships.countByGroupId(10L)).thenReturn(8L);
+    when(memberships.countByGroupIdAndGroupRole(10L, MemberRole.MANAGER)).thenReturn(1L);
+    when(memberships.countByGroupIdAndGroupRole(10L, MemberRole.WORKER)).thenReturn(7L);
+    when(templates.countByGroupIdAndActiveTrue(10L)).thenReturn(3L);
+    when(assignments.countByScheduleTaskTemplateGroupId(10L)).thenReturn(12L);
+    when(assignments.countByScheduleTaskTemplateGroupIdAndStatus(10L, AssignmentStatus.COMPLETED))
+        .thenReturn(7L);
 
     GroupService.GroupDetail result = service.detail(10L, 2L);
 
     assertThat(result.group()).isSameAs(group);
+    assertThat(result.managerCount()).isEqualTo(1L);
+    assertThat(result.workerCount()).isEqualTo(7L);
     assertThat(result.memberCount()).isEqualTo(8L);
+    assertThat(result.taskCount()).isEqualTo(3L);
+    assertThat(result.completionRate()).isEqualTo(58);
     assertThat(result.role()).isEqualTo(MemberRole.WORKER);
     verify(memberships).findByGroupIdAndMemberId(10L, 2L);
   }

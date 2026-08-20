@@ -12,6 +12,8 @@ public interface GroupMemberRepository extends JpaRepository<GroupMember, Long> 
 
   long countByGroupId(Long groupId);
 
+  long countByGroupIdAndGroupRole(Long groupId, com.ktb.hackathon.team11.member.MemberRole groupRole);
+
   @EntityGraph(attributePaths = "group")
   List<GroupMember> findAllByMemberId(Long memberId);
 
