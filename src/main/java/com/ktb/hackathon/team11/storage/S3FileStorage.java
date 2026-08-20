@@ -56,11 +56,16 @@ public class S3FileStorage implements FileStorage {
 
   public String createReadUrl(String key, Duration valid) {
     try {
+      long cacheSeconds = Math.max(0, Math.min(valid.toSeconds(), 300));
       return presigner
           .presignGetObject(
               GetObjectPresignRequest.builder()
                   .signatureDuration(valid)
-                  .getObjectRequest(b -> b.bucket(bucket).key(key))
+                  .getObjectRequest(
+                      b ->
+                          b.bucket(bucket)
+                              .key(key)
+                              .responseCacheControl("private, max-age=" + cacheSeconds))
                   .build())
           .url()
           .toString();

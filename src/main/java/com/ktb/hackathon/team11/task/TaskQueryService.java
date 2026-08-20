@@ -37,9 +37,18 @@ public class TaskQueryService {
 
   public TaskListResponse list(long groupId, long requesterId, int offset, int limit, TaskStatus filter) {
     groups.requireMember(groupId, requesterId);
+    Map<Long, List<TaskAssignment>> assignmentsByTemplate =
+        assignments.findAllByScheduleTaskTemplateGroupId(groupId).stream()
+            .collect(
+                java.util.stream.Collectors.groupingBy(
+                    assignment -> assignment.getSchedule().getTaskTemplate().getId()));
     List<TaskSummary> all =
         templates.findAllByGroupIdAndActiveTrueOrderByCreatedAtDesc(groupId).stream()
-            .map(this::summary)
+            .map(
+                template ->
+                    summary(
+                        template,
+                        assignmentsByTemplate.getOrDefault(template.getId(), List.of())))
             .filter(summary -> summary.itemCount() > 0)
             .filter(summary -> filter == null || summary.status() == filter)
             .toList();
@@ -58,6 +67,18 @@ public class TaskQueryService {
     if (taskAssignments.isEmpty()) throw new BusinessException(ErrorCode.TASK_NOT_FOUND);
 
     TaskSummary summary = summary(template, taskAssignments);
+    Map<Long, TaskAttempt> latestAttempts = new HashMap<>();
+    attempts
+        .findAllByAssignmentIdInOrderByAssignmentIdAscAttemptNumberDesc(
+            taskAssignments.stream().map(TaskAssignment::getId).toList())
+        .forEach(
+            attempt -> latestAttempts.putIfAbsent(attempt.getAssignment().getId(), attempt));
+    Map<Long, TaskPhoto> photosByAttempt =
+        photos.findAllByAttemptIdIn(latestAttempts.values().stream().map(TaskAttempt::getId).toList())
+            .stream()
+            .collect(
+                java.util.stream.Collectors.toMap(
+                    photo -> photo.getAttempt().getId(), photo -> photo));
     return new TaskDetail(
         taskId,
         template.getGroup().getId(),
@@ -77,12 +98,8 @@ public class TaskQueryService {
         template.isNotifyOnCompletion(),
         toOffsetDateTime(template.getCreatedAt()),
         taskAssignments.stream().sorted(Comparator.comparing(a -> a.getTaskItemTemplate().getSequence()))
-            .map(this::checklist)
+            .map(assignment -> checklist(assignment, latestAttempts, photosByAttempt))
             .toList());
-  }
-
-  private TaskSummary summary(TaskTemplate template) {
-    return summary(template, taskAssignments(template.getId()));
   }
 
   private TaskSummary summary(TaskTemplate template, List<TaskAssignment> taskAssignments) {
@@ -101,10 +118,13 @@ public class TaskQueryService {
             .anyMatch(a -> a.getTaskItemTemplate().getCompletionType() == com.ktb.hackathon.team11.ai.CompletionType.PHOTO));
   }
 
-  private Checklist checklist(TaskAssignment assignment) {
+  private Checklist checklist(
+      TaskAssignment assignment,
+      Map<Long, TaskAttempt> latestAttempts,
+      Map<Long, TaskPhoto> photosByAttempt) {
     TaskItemTemplate item = assignment.getTaskItemTemplate();
-    TaskAttempt attempt = attempts.findFirstByAssignmentIdOrderByAttemptNumberDesc(assignment.getId()).orElse(null);
-    TaskPhoto photo = attempt == null ? null : photos.findByAttemptId(attempt.getId()).orElse(null);
+    TaskAttempt attempt = latestAttempts.get(assignment.getId());
+    TaskPhoto photo = attempt == null ? null : photosByAttempt.get(attempt.getId());
     return new Checklist(
         assignment.getId(),
         item.getSequence(),

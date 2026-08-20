@@ -8,5 +8,8 @@ public interface TaskAttemptRepository extends JpaRepository<TaskAttempt, Long> 
 
   List<TaskAttempt> findAllByAssignmentIdOrderByAttemptNumber(Long id);
 
+  List<TaskAttempt> findAllByAssignmentIdInOrderByAssignmentIdAscAttemptNumberDesc(
+      Collection<Long> assignmentIds);
+
   Optional<TaskAttempt> findFirstByAssignmentIdOrderByAttemptNumberDesc(Long id);
 }
