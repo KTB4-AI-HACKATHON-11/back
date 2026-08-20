@@ -98,10 +98,13 @@ class GroupServiceTest {
     when(memberships.findByGroupIdAndMemberId(10L, 2L))
         .thenReturn(Optional.of(new GroupMember(group, new Member("알바", MemberRole.WORKER))));
     when(groups.findById(10L)).thenReturn(Optional.of(group));
+    when(memberships.countByGroupId(10L)).thenReturn(8L);
 
-    WorkGroup result = service.detail(10L, 2L);
+    GroupService.GroupDetail result = service.detail(10L, 2L);
 
-    assertThat(result).isSameAs(group);
+    assertThat(result.group()).isSameAs(group);
+    assertThat(result.memberCount()).isEqualTo(8L);
+    assertThat(result.role()).isEqualTo(MemberRole.WORKER);
     verify(memberships).findByGroupIdAndMemberId(10L, 2L);
   }
 

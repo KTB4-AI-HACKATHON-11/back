@@ -49,9 +49,10 @@ public class GroupService {
     return groups.findById(id).orElseThrow(() -> new BusinessException(ErrorCode.GROUP_NOT_FOUND));
   }
 
-  public WorkGroup detail(long groupId, long memberId) {
-    requireMember(groupId, memberId);
-    return requireGroup(groupId);
+  public GroupDetail detail(long groupId, long memberId) {
+    WorkGroup group = requireGroup(groupId);
+    GroupMember membership = requireMember(groupId, memberId);
+    return new GroupDetail(group, memberships.countByGroupId(groupId), membership.getGroupRole());
   }
 
   public GroupMember requireMember(long groupId, long memberId) {
@@ -88,4 +89,6 @@ public class GroupService {
     requireManager(groupId, requesterId);
     return memberships.findAllByGroupId(groupId);
   }
+
+  public record GroupDetail(WorkGroup group, long memberCount, MemberRole role) {}
 }

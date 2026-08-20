@@ -58,13 +58,17 @@ class GroupControllerTest {
   void returnsGroupDetail() {
     WorkGroup group =
         new WorkGroup("성수 플래그십 스토어", "매장 운영", "000001", new Member("점장", MemberRole.MANAGER));
-    when(service.detail(1L, 2L)).thenReturn(group);
+    when(service.detail(1L, 2L))
+        .thenReturn(new GroupService.GroupDetail(group, 8L, MemberRole.MANAGER));
 
-    ApiResponse<GroupController.GroupResponse> response = controller.detail(1L, 2L);
+    ApiResponse<GroupController.GroupDetailResponse> response = controller.detail(1L, 2L);
 
-    assertThat(response.getCode()).isEqualTo("GROUP_FOUND");
+    assertThat(response.getCode()).isEqualTo("SUCCESS");
+    assertThat(response.getMessage()).isEqualTo("그룹 상세 조회 성공");
     assertThat(response.getData().name()).isEqualTo("성수 플래그십 스토어");
     assertThat(response.getData().description()).isEqualTo("매장 운영");
+    assertThat(response.getData().memberCount()).isEqualTo(8L);
+    assertThat(response.getData().role()).isEqualTo(MemberRole.MANAGER);
     verify(service).detail(1L, 2L);
   }
 

@@ -10,6 +10,8 @@ public interface GroupMemberRepository extends JpaRepository<GroupMember, Long> 
 
   Optional<GroupMember> findByGroupIdAndMemberId(Long groupId, Long memberId);
 
+  long countByGroupId(Long groupId);
+
   List<GroupMember> findAllByMemberId(Long memberId);
 
   @EntityGraph(attributePaths = "group")
