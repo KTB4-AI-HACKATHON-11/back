@@ -111,22 +111,23 @@ class TaskRegistrationServiceTest {
   }
 
   @Test
-  void rejectsPhotoChecklistWithoutReferencePhoto() {
-    assertError(
-        ErrorCode.REFERENCE_PHOTO_REQUIRED,
-        () ->
-            service.create(
-                1L,
-                1L,
-                "오픈 점검",
-                "조명을 확인해줘",
-                2L,
-                OffsetDateTime.parse("2026-08-21T09:30:00+09:00"),
-                List.of(
-                    new TaskRegistrationService.ChecklistCommand(
-                        1, "조명 확인", "촬영해 주세요.", CompletionType.PHOTO, "켜져 있어야 한다.", null)),
-                List.of()));
-    verifyNoInteractions(storage, templates, items, schedules, assignments);
+  void createsPhotoChecklistWithoutReferencePhoto() {
+    TaskRegistrationService.TaskCreatedResponse response =
+        service.create(
+            1L,
+            1L,
+            "오픈 점검",
+            "조명을 확인해줘",
+            2L,
+            OffsetDateTime.parse("2026-08-21T09:30:00+09:00"),
+            List.of(
+                new TaskRegistrationService.ChecklistCommand(
+                    1, "조명 확인", "촬영해 주세요.", CompletionType.PHOTO, "켜져 있어야 한다.", null)),
+            List.of());
+
+    assertThat(response.checklists()).hasSize(1);
+    assertThat(response.checklists().getFirst().referencePhotoAttached()).isFalse();
+    verifyNoInteractions(storage);
   }
 
   @Test
