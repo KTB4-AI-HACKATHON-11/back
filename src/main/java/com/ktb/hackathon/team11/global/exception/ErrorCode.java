@@ -18,6 +18,7 @@ public enum ErrorCode {
   MEMBER_NOT_FOUND(HttpStatus.NOT_FOUND, "회원을 찾을 수 없습니다."),
   GROUP_NOT_FOUND(HttpStatus.NOT_FOUND, "그룹을 찾을 수 없습니다."),
   TEMPLATE_NOT_FOUND(HttpStatus.NOT_FOUND, "업무 템플릿을 찾을 수 없습니다."),
+  TASK_NOT_FOUND(HttpStatus.NOT_FOUND, "태스크를 찾을 수 없습니다."),
   ASSIGNMENT_NOT_FOUND(HttpStatus.NOT_FOUND, "배정 업무를 찾을 수 없습니다."),
   ATTEMPT_NOT_FOUND(HttpStatus.NOT_FOUND, "제출 이력을 찾을 수 없습니다."),
   DUPLICATE_NICKNAME(HttpStatus.CONFLICT, "이미 사용 중인 닉네임입니다."),
