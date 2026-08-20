@@ -3,6 +3,7 @@ package com.ktb.hackathon.team11.task;
 import com.ktb.hackathon.team11.assignment.AssignmentStatus;
 import com.ktb.hackathon.team11.assignment.TaskAssignment;
 import com.ktb.hackathon.team11.assignment.TaskAssignmentRepository;
+import com.ktb.hackathon.team11.ai.CompletionType;
 import com.ktb.hackathon.team11.attempt.TaskAttempt;
 import com.ktb.hackathon.team11.attempt.TaskAttemptRepository;
 import com.ktb.hackathon.team11.attempt.TaskPhoto;
@@ -10,10 +11,18 @@ import com.ktb.hackathon.team11.attempt.TaskPhotoRepository;
 import com.ktb.hackathon.team11.global.exception.BusinessException;
 import com.ktb.hackathon.team11.global.exception.ErrorCode;
 import com.ktb.hackathon.team11.group.GroupService;
-import com.ktb.hackathon.team11.member.MemberRole;
+import com.ktb.hackathon.team11.member.Member;
 import com.ktb.hackathon.team11.storage.FileStorage;
-import java.time.*;
-import java.util.*;
+import java.time.Clock;
+import java.time.Duration;
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneId;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -39,9 +48,7 @@ public class TaskQueryService {
     groups.requireMember(groupId, requesterId);
     Map<Long, List<TaskAssignment>> assignmentsByTemplate =
         assignments.findAllByScheduleTaskTemplateGroupId(groupId).stream()
-            .collect(
-                java.util.stream.Collectors.groupingBy(
-                    assignment -> assignment.getSchedule().getTaskTemplate().getId()));
+            .collect(Collectors.groupingBy(this::templateId));
     List<TaskSummary> all =
         templates.findAllByGroupIdAndActiveTrueOrderByCreatedAtDesc(groupId).stream()
             .map(
@@ -67,18 +74,9 @@ public class TaskQueryService {
     if (taskAssignments.isEmpty()) throw new BusinessException(ErrorCode.TASK_NOT_FOUND);
 
     TaskSummary summary = summary(template, taskAssignments);
-    Map<Long, TaskAttempt> latestAttempts = new HashMap<>();
-    attempts
-        .findAllByAssignmentIdInOrderByAssignmentIdAscAttemptNumberDesc(
-            taskAssignments.stream().map(TaskAssignment::getId).toList())
-        .forEach(
-            attempt -> latestAttempts.putIfAbsent(attempt.getAssignment().getId(), attempt));
-    Map<Long, TaskPhoto> photosByAttempt =
-        photos.findAllByAttemptIdIn(latestAttempts.values().stream().map(TaskAttempt::getId).toList())
-            .stream()
-            .collect(
-                java.util.stream.Collectors.toMap(
-                    photo -> photo.getAttempt().getId(), photo -> photo));
+    Map<Long, TaskAttempt> latestAttempts = latestAttemptsByAssignment(taskAssignments);
+    Map<Long, TaskPhoto> photosByAttempt = photosByAttempt(latestAttempts);
+    TaskAssignment primaryAssignment = taskAssignments.getFirst();
     return new TaskDetail(
         taskId,
         template.getGroup().getId(),
@@ -86,20 +84,44 @@ public class TaskQueryService {
         template.getSourceMessage(),
         template.getCreator().getId(),
         template.getCreator().getNickname(),
-        taskAssignments.get(0).getAssignee() == null
+        primaryAssignment.getAssignee() == null
             ? null
-            : taskAssignments.get(0).getAssignee().getId(),
-        taskAssignments.get(0).getAssignee() == null
+            : primaryAssignment.getAssignee().getId(),
+        primaryAssignment.getAssignee() == null
             ? null
-            : taskAssignments.get(0).getAssignee().getNickname(),
-        toOffsetDateTime(taskAssignments.get(0).getDueAt()),
+            : primaryAssignment.getAssignee().getNickname(),
+        toOffsetDateTime(primaryAssignment.getDueAt()),
         summary.status(),
         summary.progress(),
         template.isNotifyOnCompletion(),
         toOffsetDateTime(template.getCreatedAt()),
-        taskAssignments.stream().sorted(Comparator.comparing(a -> a.getTaskItemTemplate().getSequence()))
+        taskAssignments.stream()
             .map(assignment -> checklist(assignment, latestAttempts, photosByAttempt))
             .toList());
+  }
+
+  private Map<Long, TaskAttempt> latestAttemptsByAssignment(
+      List<TaskAssignment> taskAssignments) {
+    Map<Long, TaskAttempt> latestAttempts = new HashMap<>();
+    attempts
+        .findAllByAssignmentIdInOrderByAssignmentIdAscAttemptNumberDesc(
+            taskAssignments.stream().map(TaskAssignment::getId).toList())
+        .forEach(
+            attempt -> latestAttempts.putIfAbsent(attempt.getAssignment().getId(), attempt));
+    return latestAttempts;
+  }
+
+  private Map<Long, TaskPhoto> photosByAttempt(Map<Long, TaskAttempt> latestAttempts) {
+    if (latestAttempts.isEmpty()) return Map.of();
+
+    return photos.findAllByAttemptIdIn(
+            latestAttempts.values().stream().map(TaskAttempt::getId).toList())
+        .stream()
+        .collect(Collectors.toMap(photo -> photo.getAttempt().getId(), photo -> photo));
+  }
+
+  private long templateId(TaskAssignment assignment) {
+    return assignment.getSchedule().getTaskTemplate().getId();
   }
 
   private TaskSummary summary(TaskTemplate template, List<TaskAssignment> taskAssignments) {
@@ -115,7 +137,7 @@ public class TaskQueryService {
         completed,
         progress(completed, itemCount),
         taskAssignments.stream()
-            .anyMatch(a -> a.getTaskItemTemplate().getCompletionType() == com.ktb.hackathon.team11.ai.CompletionType.PHOTO));
+            .anyMatch(a -> a.getTaskItemTemplate().getCompletionType() == CompletionType.PHOTO));
   }
 
   private Checklist checklist(
@@ -180,7 +202,7 @@ public class TaskQueryService {
       int completedItemCount,
       int progress,
       boolean hasPhotoVerification) {
-    private TaskSummary(Long taskId, String title, com.ktb.hackathon.team11.member.Member worker,
+    private TaskSummary(Long taskId, String title, Member worker,
         OffsetDateTime dueAt, TaskStatus status, int itemCount, int completedItemCount,
         int progress, boolean hasPhotoVerification) {
       this(taskId, title, worker == null ? null : worker.getId(), worker == null ? null : worker.getNickname(),
@@ -209,7 +231,7 @@ public class TaskQueryService {
       int sequence,
       String title,
       String instruction,
-      com.ktb.hackathon.team11.ai.CompletionType completionType,
+      CompletionType completionType,
       String rule,
       boolean enabled,
       String referencePhotoUrl,

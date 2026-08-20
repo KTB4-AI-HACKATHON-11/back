@@ -1,6 +1,8 @@
 package com.ktb.hackathon.team11.attempt;
 
-import java.util.*;
+import java.util.Collection;
+import java.util.List;
+import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface TaskAttemptRepository extends JpaRepository<TaskAttempt, Long> {

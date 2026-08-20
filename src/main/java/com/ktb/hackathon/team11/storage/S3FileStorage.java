@@ -16,16 +16,21 @@ import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignReques
 @Component
 @ConditionalOnProperty(name = "storage.local-enabled", havingValue = "false")
 public class S3FileStorage implements FileStorage {
+  private static final Duration DEFAULT_READ_URL_VALIDITY = Duration.ofMinutes(5);
+  private static final long MAX_BROWSER_CACHE_SECONDS = 300;
   private static final Logger log = LoggerFactory.getLogger(S3FileStorage.class);
 
   private final S3Client client;
   private final S3Presigner presigner;
   private final String bucket;
 
-  public S3FileStorage(S3Client c, S3Presigner p, @Value("${storage.bucket}") String b) {
-    client = c;
-    presigner = p;
-    bucket = b;
+  public S3FileStorage(
+      S3Client client,
+      S3Presigner presigner,
+      @Value("${storage.bucket}") String bucket) {
+    this.client = client;
+    this.presigner = presigner;
+    this.bucket = bucket;
   }
 
   public StoredFile store(String key, byte[] bytes, String mime) {
@@ -33,7 +38,7 @@ public class S3FileStorage implements FileStorage {
       client.putObject(
           PutObjectRequest.builder().bucket(bucket).key(key).contentType(mime).build(),
           RequestBody.fromBytes(bytes));
-      return new StoredFile(key, createReadUrl(key, Duration.ofMinutes(5)));
+      return new StoredFile(key, createReadUrl(key, DEFAULT_READ_URL_VALIDITY));
     } catch (S3Exception e) {
       log.error(
           "S3 upload failed bucket={} key={} status={} code={} requestId={}",
@@ -56,7 +61,7 @@ public class S3FileStorage implements FileStorage {
 
   public String createReadUrl(String key, Duration valid) {
     try {
-      long cacheSeconds = Math.max(0, Math.min(valid.toSeconds(), 300));
+      long cacheSeconds = Math.max(0, Math.min(valid.toSeconds(), MAX_BROWSER_CACHE_SECONDS));
       return presigner
           .presignGetObject(
               GetObjectPresignRequest.builder()
