@@ -60,15 +60,17 @@ public class TaskAttemptService {
     private void evaluate(TaskAssignment assignment, TaskAttempt attempt, String mime, long size, String sha, String objectKey, String url) {
         try {
             var item = assignment.getTaskItemTemplate();
-            if (!item.hasReferenceImage())
-                throw new BusinessException(ErrorCode.REFERENCE_PHOTO_REQUIRED);
-            String referenceUrl = storage.createReadUrl(item.getReferenceImageKey(), Duration.ofMinutes(urlMinutes));
+            String referenceUrl = item.hasReferenceImage()
+                    ? storage.createReadUrl(item.getReferenceImageKey(), Duration.ofMinutes(urlMinutes))
+                    : null;
             PhotoCheckResult result;
             try {
                 result = check(assignment, mime, size, sha, url, referenceUrl);
             } catch (PhotoUnavailableException exception) {
-                if (exception.isReferencePhoto() && item.hasReferenceImage()) {
-                    referenceUrl = storage.createReadUrl(item.getReferenceImageKey(), Duration.ofMinutes(urlMinutes));
+                if (exception.isReferencePhoto()) {
+                    if (!item.hasReferenceImage()) throw new BusinessException(ErrorCode.AI_UNAVAILABLE);
+                    referenceUrl = storage.createReadUrl(
+                            item.getReferenceImageKey(), Duration.ofMinutes(urlMinutes));
                 } else {
                     url = storage.createReadUrl(objectKey, Duration.ofMinutes(urlMinutes));
                 }

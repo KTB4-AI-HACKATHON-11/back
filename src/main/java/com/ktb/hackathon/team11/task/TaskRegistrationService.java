@@ -67,7 +67,8 @@ public class TaskRegistrationService {
                   command.instruction().strip(),
                   command.completionType(),
                   command.rule()));
-      if (command.completionType() == CompletionType.PHOTO) {
+      if (command.completionType() == CompletionType.PHOTO
+          && command.referencePhotoIndex() != null) {
         PhotoInspector.InspectedPhoto photo =
             inspectedPhotos.get(command.referencePhotoIndex());
         String key =
@@ -148,12 +149,12 @@ public class TaskRegistrationService {
 
       if (command.completionType() == CompletionType.PHOTO) {
         Integer photoIndex = command.referencePhotoIndex();
-        if (photoIndex == null) throw new BusinessException(ErrorCode.REFERENCE_PHOTO_REQUIRED);
-        if (photoIndex < 0
-            || photoIndex >= referencePhotos.size()
-            || usedPhotoIndexes[photoIndex])
+        if (photoIndex != null
+            && (photoIndex < 0
+                || photoIndex >= referencePhotos.size()
+                || usedPhotoIndexes[photoIndex]))
           throw new BusinessException(ErrorCode.INVALID_REFERENCE_PHOTO_INDEX);
-        usedPhotoIndexes[photoIndex] = true;
+        if (photoIndex != null) usedPhotoIndexes[photoIndex] = true;
       } else if (command.referencePhotoIndex() != null) {
         throw new BusinessException(ErrorCode.INVALID_REFERENCE_PHOTO_INDEX);
       }

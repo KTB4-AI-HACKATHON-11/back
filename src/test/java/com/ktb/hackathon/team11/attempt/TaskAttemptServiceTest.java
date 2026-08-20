@@ -104,6 +104,23 @@ class TaskAttemptServiceTest {
   }
 
   @Test
+  void passesWorkerPhotoToAiWithoutOptionalReferencePhoto() {
+    when(item.hasReferenceImage()).thenReturn(false);
+    when(assignment.getStatus()).thenReturn(AssignmentStatus.COMPLETED);
+    when(ai.checkPhoto(any()))
+        .thenReturn(new PhotoCheckResult(PhotoCheckStatus.PASS, "기준을 충족합니다.", null));
+
+    TaskAttemptService.Result result = service.submit(15L, 2L, file);
+
+    assertThat(result.status()).isEqualTo(AttemptStatus.PASS);
+    ArgumentCaptor<PhotoCheckCommand> command = ArgumentCaptor.forClass(PhotoCheckCommand.class);
+    verify(ai).checkPhoto(command.capture());
+    assertThat(command.getValue().photo()).isNotNull();
+    assertThat(command.getValue().referencePhoto()).isNull();
+    verify(storage, never()).createReadUrl(eq("groups/1/references/reference.png"), any());
+  }
+
+  @Test
   void retakeKeepsAttemptAndRequestsAnotherPhoto() {
     when(assignment.getStatus()).thenReturn(AssignmentStatus.RETAKE_REQUIRED);
     when(ai.checkPhoto(any()))
