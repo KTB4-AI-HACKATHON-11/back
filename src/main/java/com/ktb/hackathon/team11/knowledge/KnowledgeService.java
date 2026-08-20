@@ -21,7 +21,6 @@ public class KnowledgeService {
   private final GroupService groups;
   private final ConcurrentMap<String, Conversation> conversations = new ConcurrentHashMap<>();
 
-  private static final int MAX_TURNS = 10;
   private static final int MAX_QUESTION_LENGTH = 60_000;
 
   public KnowledgeService(AiTaskClient ai, StoreInfoRepository infos, GroupService groups) {
@@ -100,7 +99,6 @@ public class KnowledgeService {
 
     private void add(String question, String answer) {
       turns.addLast(new Turn(question, answer));
-      while (turns.size() > MAX_TURNS) turns.removeFirst();
     }
   }
 
