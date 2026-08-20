@@ -58,4 +58,21 @@ public class AssignmentService {
     a.completeCheck(LocalDateTime.now(clock));
     return a;
   }
+
+  @Transactional
+  public TaskAssignment updatePerformed(
+      long taskId, long checklistId, long workerId, boolean performed) {
+    members.requireRole(workerId, MemberRole.WORKER);
+    TaskAssignment assignment =
+        repository
+            .findByIdAndScheduleTaskTemplateId(checklistId, taskId)
+            .orElseThrow(() -> new BusinessException(ErrorCode.TASK_NOT_FOUND));
+    long groupId = assignment.getSchedule().getTaskTemplate().getGroup().getId();
+    groups.requireMember(groupId, workerId);
+    if (assignment.getAssignee() != null && !assignment.getAssignee().getId().equals(workerId))
+      throw new BusinessException(ErrorCode.GROUP_ACCESS_DENIED);
+    if (performed) assignment.completeCheck(LocalDateTime.now(clock));
+    else assignment.uncompleteCheck(LocalDateTime.now(clock));
+    return assignment;
+  }
 }

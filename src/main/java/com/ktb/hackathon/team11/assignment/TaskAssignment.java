@@ -85,6 +85,15 @@ public class TaskAssignment extends BaseEntity {
     completedAt = now;
   }
 
+  public void uncompleteCheck(LocalDateTime now) {
+    if (taskItemTemplate.getCompletionType() != CompletionType.CHECK)
+      throw new BusinessException(ErrorCode.INVALID_COMPLETION_TYPE);
+    if (now.isBefore(availableFrom) || now.isAfter(dueAt))
+      throw new BusinessException(ErrorCode.TASK_NOT_AVAILABLE);
+    status = AssignmentStatus.PENDING;
+    completedAt = null;
+  }
+
   public void verifying() {
     status = AssignmentStatus.VERIFYING;
   }

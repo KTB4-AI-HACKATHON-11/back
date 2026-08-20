@@ -86,7 +86,7 @@ public class GroupService {
   }
 
   public List<GroupMember> membersOf(long groupId, long requesterId) {
-    requireManager(groupId, requesterId);
+    requireMember(groupId, requesterId);
     return memberships.findAllByGroupId(groupId);
   }
 
