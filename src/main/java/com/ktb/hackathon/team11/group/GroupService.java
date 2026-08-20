@@ -5,6 +5,7 @@ import com.ktb.hackathon.team11.member.*;
 import java.security.SecureRandom;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -48,6 +49,11 @@ public class GroupService {
     return groups.findById(id).orElseThrow(() -> new BusinessException(ErrorCode.GROUP_NOT_FOUND));
   }
 
+  public WorkGroup detail(long groupId, long memberId) {
+    requireMember(groupId, memberId);
+    return requireGroup(groupId);
+  }
+
   public GroupMember requireMember(long groupId, long memberId) {
     return memberships
         .findByGroupIdAndMemberId(groupId, memberId)
@@ -64,6 +70,18 @@ public class GroupService {
   public List<GroupMember> groupsOf(long memberId) {
     members.requireMember(memberId);
     return memberships.findAllByMemberId(memberId);
+  }
+
+  public List<GroupMember> groupsOf(long memberId, int offset, int limit) {
+    members.requireMember(memberId);
+    int page = offset / limit;
+    int remainder = offset % limit;
+    int pageSize = limit + remainder;
+
+    return memberships.findAllByMemberIdOrderByIdDesc(memberId, PageRequest.of(page, pageSize)).stream()
+        .skip(remainder)
+        .limit(limit)
+        .toList();
   }
 
   public List<GroupMember> membersOf(long groupId, long requesterId) {

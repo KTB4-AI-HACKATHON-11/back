@@ -60,13 +60,27 @@ public class GroupController {
         "GROUP_JOINED", GroupResponse.from(service.join(request.memberId(), request.groupId())));
   }
 
-  @Operation(summary = "내 그룹 목록 조회", description = "회원이 가입한 모든 편의점 그룹을 조회합니다.")
+  @Operation(summary = "그룹 상세 조회", description = "그룹 구성원이 그룹의 기본 정보를 조회합니다.")
+  @GetMapping("/groups/{groupId}")
+  ApiResponse<GroupResponse> detail(
+      @Parameter(description = "그룹 ID", example = "1") @PathVariable long groupId,
+      @Parameter(description = "조회 회원 ID", example = "2") @RequestParam long memberId) {
+    return ApiResponse.of("GROUP_FOUND", GroupResponse.from(service.detail(groupId, memberId)));
+  }
+
+  @Operation(summary = "내 그룹 목록 조회", description = "회원이 가입한 편의점 그룹을 offset과 limit 기준으로 잘라 조회합니다.")
   @GetMapping("/members/{memberId}/groups")
   ApiResponse<List<GroupResponse>> mine(
-      @Parameter(description = "조회할 회원 ID", example = "2") @PathVariable long memberId) {
+      @Parameter(description = "조회할 회원 ID", example = "2") @PathVariable long memberId,
+      @Parameter(description = "건너뛸 그룹 수", example = "0") @RequestParam(defaultValue = "0")
+          @PositiveOrZero
+          int offset,
+      @Parameter(description = "조회할 그룹 수", example = "20") @RequestParam(defaultValue = "20")
+          @Positive
+          int limit) {
     return ApiResponse.of(
         "GROUPS_FOUND",
-        service.groupsOf(memberId).stream()
+        service.groupsOf(memberId, offset, limit).stream()
             .map(group -> GroupResponse.from(group.getGroup()))
             .toList());
   }

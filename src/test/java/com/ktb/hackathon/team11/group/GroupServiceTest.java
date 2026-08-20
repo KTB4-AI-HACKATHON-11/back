@@ -11,9 +11,11 @@ import com.ktb.hackathon.team11.global.exception.ErrorCode;
 import com.ktb.hackathon.team11.member.Member;
 import com.ktb.hackathon.team11.member.MemberRole;
 import com.ktb.hackathon.team11.member.MemberService;
+import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.data.domain.Pageable;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -87,5 +89,43 @@ class GroupServiceTest {
         .isInstanceOf(BusinessException.class)
         .extracting(exception -> ((BusinessException) exception).getErrorCode())
         .isEqualTo(ErrorCode.ALREADY_GROUP_MEMBER);
+  }
+
+  @Test
+  void returnsGroupDetailAfterCheckingMembership() {
+    WorkGroup group =
+        new WorkGroup("성수점", "매장 운영", "000001", new Member("점장", MemberRole.MANAGER));
+    when(memberships.findByGroupIdAndMemberId(10L, 2L))
+        .thenReturn(Optional.of(new GroupMember(group, new Member("알바", MemberRole.WORKER))));
+    when(groups.findById(10L)).thenReturn(Optional.of(group));
+
+    WorkGroup result = service.detail(10L, 2L);
+
+    assertThat(result).isSameAs(group);
+    verify(memberships).findByGroupIdAndMemberId(10L, 2L);
+  }
+
+  @Test
+  void listsMemberGroupsWithOffsetAndLimit() {
+    Member worker = new Member("알바", MemberRole.WORKER);
+    GroupMember membership1 =
+        new GroupMember(
+            new WorkGroup("성수점", "야간 업무", "000001", new Member("점장", MemberRole.MANAGER)),
+            worker);
+    GroupMember membership2 =
+        new GroupMember(
+            new WorkGroup("건대점", "오픈 업무", "000002", new Member("부점장", MemberRole.MANAGER)),
+            worker);
+    GroupMember membership3 =
+        new GroupMember(
+            new WorkGroup("잠실점", "마감 업무", "000003", new Member("매니저", MemberRole.MANAGER)),
+            worker);
+    when(members.requireMember(2L)).thenReturn(worker);
+    when(memberships.findAllByMemberIdOrderByIdDesc(org.mockito.ArgumentMatchers.eq(2L), any(Pageable.class)))
+        .thenReturn(List.of(membership1, membership2, membership3));
+
+    List<GroupMember> result = service.groupsOf(2L, 1, 2);
+
+    assertThat(result).containsExactly(membership2, membership3);
   }
 }
