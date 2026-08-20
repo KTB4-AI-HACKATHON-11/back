@@ -6,4 +6,6 @@ public interface AiTaskClient {
   List<GeneratedTask> generateTasks(String message);
 
   PhotoCheckResult checkPhoto(PhotoCheckCommand command);
+
+  String answerKnowledge(String information, String question);
 }

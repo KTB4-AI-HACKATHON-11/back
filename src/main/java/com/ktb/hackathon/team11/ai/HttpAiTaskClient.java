@@ -71,6 +71,24 @@ public class HttpAiTaskClient implements AiTaskClient {
         return new PhotoCheckResult(response.status(), response.reason(), response.status() == PhotoCheckStatus.PASS ? null : response.fix());
     }
 
+    @Override
+    public String answerKnowledge(String information, String question) {
+        if (information == null || information.isBlank() || information.length() > 60_000
+                || question == null || question.isBlank() || question.length() > 200) {
+            throw new BusinessException(ErrorCode.AI_INVALID_REQUEST);
+        }
+        KnowledgeResponse response = exchangeWithRetry(
+                "/v1/knowledge/answer",
+                new KnowledgeRequest(information, question),
+                KnowledgeResponse.class);
+        if (response == null || response.answer() == null || response.answer().isBlank()
+                || response.answer().length() > 8_000) {
+            log.warn("AI knowledge answer returned an invalid response shape");
+            throw new BusinessException(ErrorCode.AI_UNAVAILABLE);
+        }
+        return response.answer();
+    }
+
     private void validateCheckResponse(CheckResponse response) {
         if (response == null || response.status() == null || response.reason() == null || response.reason().isBlank() || response.reason().length() > 500) {
             log.warn("AI photo check returned an invalid response shape");
@@ -143,6 +161,8 @@ public class HttpAiTaskClient implements AiTaskClient {
         }
     }
     record CheckResponse(PhotoCheckStatus status, String reason, String fix) {}
+    record KnowledgeRequest(String information, String question) {}
+    record KnowledgeResponse(String answer) {}
     record ErrorEnvelope(ErrorPayload error) {}
     record ErrorPayload(String code, String message, String field) {}
 }
