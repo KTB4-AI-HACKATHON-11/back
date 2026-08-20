@@ -4,6 +4,7 @@ import com.ktb.hackathon.team11.ai.*;
 import com.ktb.hackathon.team11.global.exception.*;
 import com.ktb.hackathon.team11.group.*;
 import com.ktb.hackathon.team11.storage.*;
+import java.time.OffsetDateTime;
 import java.util.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -21,9 +22,58 @@ public class TaskTemplateService {
   private final PhotoInspector photoInspector;
   private final FileStorage storage;
 
-  public DraftResponse draft(long groupId, long managerId, String message) {
+  public GeneratedTasksResponse generateTasks(
+      long groupId,
+      long managerId,
+      String title,
+      String message,
+      String assigneeName,
+      OffsetDateTime dueAt) {
     groups.requireManager(groupId, managerId);
-    return new DraftResponse(UUID.randomUUID(), ai.generateTasks(message));
+    List<GeneratedTask> generatedTasks = ai.generateTasks(message);
+    validateGeneratedTasks(generatedTasks);
+
+    List<ChecklistResponse> checklists = new ArrayList<>(generatedTasks.size());
+    for (int index = 0; index < generatedTasks.size(); index++) {
+      GeneratedTask task = generatedTasks.get(index);
+      checklists.add(
+          new ChecklistResponse(
+              index + 1,
+              task.title(),
+              task.instruction(),
+              task.completionType(),
+              task.rule()));
+    }
+
+    return new GeneratedTasksResponse(
+        title.strip(), message.strip(), assigneeName.strip(), dueAt, List.copyOf(checklists));
+  }
+
+  private void validateGeneratedTasks(List<GeneratedTask> tasks) {
+    if (tasks == null || tasks.isEmpty() || tasks.size() > 20) {
+      throw new BusinessException(ErrorCode.AI_UNAVAILABLE);
+    }
+
+    for (GeneratedTask task : tasks) {
+      if (task == null
+          || isInvalidText(task.title(), 80)
+          || isInvalidText(task.instruction(), 500)
+          || task.completionType() == null) {
+        throw new BusinessException(ErrorCode.AI_UNAVAILABLE);
+      }
+
+      if (task.completionType() == CompletionType.PHOTO) {
+        if (isInvalidText(task.rule(), 1000)) {
+          throw new BusinessException(ErrorCode.AI_UNAVAILABLE);
+        }
+      } else if (task.rule() != null) {
+        throw new BusinessException(ErrorCode.AI_UNAVAILABLE);
+      }
+    }
+  }
+
+  private boolean isInvalidText(String value, int maxLength) {
+    return value == null || value.isBlank() || value.length() > maxLength;
   }
 
   @Transactional
@@ -92,7 +142,19 @@ public class TaskTemplateService {
     return key;
   }
 
-  public record DraftResponse(UUID draftId, List<GeneratedTask> items) {}
+  public record GeneratedTasksResponse(
+      String title,
+      String message,
+      String assigneeName,
+      OffsetDateTime dueAt,
+      List<ChecklistResponse> checklists) {}
+
+  public record ChecklistResponse(
+      int sequence,
+      String title,
+      String instruction,
+      CompletionType completionType,
+      String rule) {}
 
   public record ItemCommand(
       String title, String instruction, CompletionType completionType, String verificationRule) {}

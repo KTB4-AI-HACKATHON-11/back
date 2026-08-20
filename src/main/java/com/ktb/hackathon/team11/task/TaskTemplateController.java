@@ -8,6 +8,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
+import java.time.OffsetDateTime;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -22,13 +23,13 @@ public class TaskTemplateController {
   private final TaskTemplateService service;
 
   @Operation(
-      summary = "자연어 업무 초안 생성",
+      summary = "AI 체크리스트 생성",
       description =
-          "MANAGER의 자연어를 AI 서버에 전달해 PHOTO 또는 CHECK 하위 업무 목록으로 변환합니다. 결과는 수정 가능한 초안이며 아직 저장되지 않습니다.",
+          "MANAGER의 자연어를 AI 서버에 전달해 PHOTO 또는 CHECK 체크리스트로 변환합니다. 결과는 저장하지 않고 프런트엔드에 반환합니다.",
       responses = {
         @io.swagger.v3.oas.annotations.responses.ApiResponse(
             responseCode = "200",
-            description = "AI 초안 생성 성공"),
+            description = "AI 체크리스트 생성 성공"),
         @io.swagger.v3.oas.annotations.responses.ApiResponse(
             responseCode = "403",
             description = "그룹 관리자 권한 없음"),
@@ -36,12 +37,19 @@ public class TaskTemplateController {
             responseCode = "503",
             description = "AI 서버 처리 실패")
       })
-  @PostMapping("/groups/{groupId}/task-drafts")
-  ApiResponse<TaskTemplateService.DraftResponse> draft(
+  @PostMapping("/groups/{groupId}/tasks/generate")
+  ApiResponse<TaskTemplateService.GeneratedTasksResponse> generate(
       @Parameter(description = "업무를 등록할 그룹 ID", example = "1") @PathVariable long groupId,
-      @Valid @RequestBody DraftRequest request) {
+      @Valid @RequestBody GenerateTasksRequest request) {
     return ApiResponse.of(
-        "TASK_DRAFT_CREATED", service.draft(groupId, request.managerId(), request.message()));
+        "TASKS_GENERATED",
+        service.generateTasks(
+            groupId,
+            request.managerId(),
+            request.title(),
+            request.message(),
+            request.assigneeName(),
+            request.dueAt()));
   }
 
   @Operation(
@@ -130,16 +138,22 @@ public class TaskTemplateController {
     return ApiResponse.of("TASK_TEMPLATE_DEACTIVATED", null);
   }
 
-  @Schema(description = "AI 업무 초안 요청")
-  public record DraftRequest(
+  @Schema(description = "AI 체크리스트 생성 요청")
+  public record GenerateTasksRequest(
       @Schema(description = "요청 MANAGER ID", example = "1") @NotNull Long managerId,
+      @Schema(description = "태스크 제목", example = "오픈 전 매장 점검") @NotBlank @Size(max = 80)
+          String title,
       @Schema(
-              description = "AI가 하위 업무로 분리할 자연어",
-              example = "밤 11시에 POS 전원을 확인하고 매장 바닥을 청소해줘",
+              description = "AI가 체크리스트로 분리할 자연어",
+              example = "오픈 전에 조명을 켜고 POS기 전원과 카운터 정리를 확인해야 해",
               maxLength = 2000)
           @NotBlank
           @Size(max = 2000)
-          String message) {}
+          String message,
+      @Schema(description = "회원과 연결하지 않는 담당자 표시 이름", example = "서연") @NotBlank @Size(max = 30)
+          String assigneeName,
+      @Schema(description = "마감 일시", example = "2026-08-20T09:30:00+09:00") @NotNull @Future
+          OffsetDateTime dueAt) {}
 
   @Schema(description = "하위 업무 등록 정보")
   public record ItemRequest(
