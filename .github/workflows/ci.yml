@@ -48,5 +48,5 @@ jobs:
       - name: Grant execute permission for Gradle wrapper
         run: chmod +x ./gradlew
 
-      - name: Build application
-        run: ./gradlew clean bootJar --no-daemon
+      - name: Build application and compile tests
+        run: ./gradlew clean compileTestJava bootJar --no-daemon

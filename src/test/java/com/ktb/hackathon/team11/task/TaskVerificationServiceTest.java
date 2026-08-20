@@ -25,12 +25,12 @@ class TaskVerificationServiceTest {
   @Mock private TaskScheduleRepository schedules;
   @Mock private GroupService groups;
   @Mock private GroupMemberRepository memberships;
-  @Mock private MemberService members;
   @Mock private PhotoInspector photoInspector;
   @Mock private FileStorage storage;
   @Mock private TaskTemplate template;
   @Mock private WorkGroup group;
   @Mock private GroupMember managerMembership;
+  @Mock private GroupMember workerMembership;
   @Mock private Member worker;
   @Mock private TaskAssignment assignment;
   @Mock private TaskItemTemplate item;
@@ -49,7 +49,6 @@ class TaskVerificationServiceTest {
             schedules,
             groups,
             memberships,
-            members,
             photoInspector,
             storage,
             clock);
@@ -59,10 +58,10 @@ class TaskVerificationServiceTest {
     when(group.getId()).thenReturn(9L);
     when(groups.requireMember(9L, 1L)).thenReturn(managerMembership);
     when(managerMembership.getGroupRole()).thenReturn(MemberRole.MANAGER);
-    when(members.requireMember(2L)).thenReturn(worker);
-    when(worker.getRole()).thenReturn(MemberRole.WORKER);
+    when(workerMembership.getGroupRole()).thenReturn(MemberRole.WORKER);
+    when(workerMembership.getMember()).thenReturn(worker);
     when(memberships.findByGroupIdAndMemberId(9L, 2L))
-        .thenReturn(Optional.of(mock(GroupMember.class)));
+        .thenReturn(Optional.of(workerMembership));
     when(assignments.findAllByScheduleTaskTemplateId(10L)).thenReturn(List.of(assignment));
     when(assignment.getId()).thenReturn(12L);
     when(assignment.getStatus()).thenReturn(AssignmentStatus.PENDING);
