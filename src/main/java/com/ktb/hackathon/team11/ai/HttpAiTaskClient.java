@@ -144,7 +144,14 @@ public class HttpAiTaskClient implements AiTaskClient {
         if (status == 401) throw new BusinessException(ErrorCode.AI_UNAUTHORIZED);
         if (status == 422) {
             ErrorEnvelope envelope = objectMapper.readValue(response.getBody(), ErrorEnvelope.class);
-            throw new PhotoUnavailableException(envelope != null && envelope.error() != null ? envelope.error().field() : null);
+            ErrorPayload error = envelope == null ? null : envelope.error();
+            if (error != null && "TASK_GENERATION_REJECTED".equals(error.code())) {
+                String message = error.message() == null || error.message().isBlank()
+                        ? ErrorCode.TASK_GENERATION_REJECTED.getMessage()
+                        : error.message();
+                throw new BusinessException(ErrorCode.TASK_GENERATION_REJECTED, message);
+            }
+            throw new PhotoUnavailableException(error == null ? null : error.field());
         }
         throw new BusinessException(ErrorCode.AI_UNAVAILABLE);
     }

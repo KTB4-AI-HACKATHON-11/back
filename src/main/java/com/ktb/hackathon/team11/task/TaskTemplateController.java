@@ -37,6 +37,9 @@ public class TaskTemplateController {
             responseCode = "403",
             description = "그룹 관리자 권한 없음"),
         @io.swagger.v3.oas.annotations.responses.ApiResponse(
+            responseCode = "422",
+            description = "구체적인 업무를 찾을 수 없어 AI가 생성을 거부함"),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(
             responseCode = "503",
             description = "AI 서버 처리 실패")
       })

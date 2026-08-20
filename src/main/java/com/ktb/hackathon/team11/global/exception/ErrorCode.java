@@ -46,6 +46,8 @@ public enum ErrorCode {
   WORKER_REQUIRED(HttpStatus.FORBIDDEN, "알바생 권한이 필요합니다."),
   AI_INVALID_REQUEST(HttpStatus.BAD_GATEWAY, "AI 요청 구성에 실패했습니다."),
   AI_UNAUTHORIZED(HttpStatus.BAD_GATEWAY, "AI 서비스 설정을 확인해 주세요."),
+  TASK_GENERATION_REJECTED(
+      HttpStatus.UNPROCESSABLE_ENTITY, "입력에서 생성할 수 있는 구체적인 업무를 찾지 못했습니다."),
   PHOTO_UNAVAILABLE(HttpStatus.UNPROCESSABLE_ENTITY, "AI가 사진을 불러올 수 없습니다."),
   AI_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "AI 서비스를 일시적으로 사용할 수 없습니다."),
   STORE_INFO_LIMIT_EXCEEDED(HttpStatus.UNPROCESSABLE_ENTITY, "매장 정보는 최대 60,000자까지 등록할 수 있습니다."),
