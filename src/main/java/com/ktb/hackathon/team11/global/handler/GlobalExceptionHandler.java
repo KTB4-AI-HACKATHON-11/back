@@ -10,6 +10,7 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -43,6 +44,13 @@ public class GlobalExceptionHandler {
         .body(
             ApiResponse.onFailure(
                 ErrorCode.INVALID_JSON_FORMAT.name(), ErrorCode.INVALID_JSON_FORMAT.getMessage()));
+  }
+
+  @ExceptionHandler(MaxUploadSizeExceededException.class)
+  public ResponseEntity<ApiResponse<Void>> handleMaxUploadSizeExceeded(
+      MaxUploadSizeExceededException exception) {
+    return ResponseEntity.status(ErrorCode.PHOTO_TOO_LARGE.getStatus())
+        .body(ApiResponse.onFailure(ErrorCode.PHOTO_TOO_LARGE.name(), ErrorCode.PHOTO_TOO_LARGE.getMessage()));
   }
 
   @ExceptionHandler(Exception.class)

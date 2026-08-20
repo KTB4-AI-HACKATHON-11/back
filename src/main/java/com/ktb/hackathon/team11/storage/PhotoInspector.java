@@ -13,7 +13,8 @@ public class PhotoInspector {
 
   public InspectedPhoto inspect(MultipartFile file) {
     try {
-      if (file.isEmpty() || file.getSize() > MAX)
+      if (file.getSize() > MAX) throw new BusinessException(ErrorCode.PHOTO_TOO_LARGE);
+      if (file.isEmpty())
         throw new BusinessException(ErrorCode.INVALID_PHOTO);
       byte[] b = file.getBytes();
       String mime;
